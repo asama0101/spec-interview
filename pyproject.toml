@@ -1,11 +1,20 @@
+[project]
+name = "grill-form"
+dynamic = ["version"]
+requires-python = ">=3.8"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["--strict-markers", "-ra"]
 xfail_strict = true
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP", "SIM", "S", "PT"]
+select = ["E", "W", "F", "I", "N", "B", "UP", "SIM", "S", "PT", "PTH", "BLE"]
+extend-select = ["PLW1514"]  # open の encoding 省略（preview のルール）
+preview = true
+explicit-preview-rules = true  # コードを指定した preview のルールだけ有効にする
 
 [tool.ruff.lint.per-file-ignores]
-# pytest は assert で検査する
-"tests/*" = ["S101"]
+# pytest は assert で検査する。S105〜S108・S603・S607 は、テストの固定値と自作スクリプトの起動に出る
+# N802 は、テスト名に日本語と英大文字（SKILL・README など）を使うため
+"tests/**" = ["S101", "S105", "S106", "S108", "S603", "S607", "N802"]

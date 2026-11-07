@@ -47,7 +47,9 @@ def _node(path: Path, depth: int, budget: list[int]) -> dict:
         with os.scandir(path) as it:
             entries = sorted(it, key=lambda e: e.name.lower())
     except OSError:
-        return node  # 読めないフォルダは中身なしで出す
+        # 読めないフォルダは、中身が一部しか見えない印を付けて出す
+        node["truncated"] = True
+        return node
     kept = 0
     for e in entries:
         is_dir = e.is_dir(follow_symlinks=False)
@@ -64,10 +66,16 @@ def _node(path: Path, depth: int, budget: list[int]) -> dict:
             break
         kept += 1
         budget[0] -= 1
-        if is_dir:
-            node["dirs"].append(_node(p, depth + 1, budget))
-        else:
+        if not is_dir:
             node["files"].append(p.name)
+            continue
+        child = _node(p, depth + 1, budget)
+        if child["dirs"] or child["files"] or child["truncated"]:
+            node["dirs"].append(child)
+        else:
+            # 選べるファイルがないフォルダは出さず、件数の上限も使わない
+            kept -= 1
+            budget[0] += 1
     return node
 
 

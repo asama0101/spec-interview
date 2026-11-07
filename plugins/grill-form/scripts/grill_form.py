@@ -372,7 +372,7 @@ def mcp_registered(claude: str) -> bool:
             check=False,
             timeout=30,
         ).returncode
-    except subprocess.TimeoutExpired:
+    except (subprocess.TimeoutExpired, OSError):
         return False
 
 

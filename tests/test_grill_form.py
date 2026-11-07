@@ -875,3 +875,14 @@ def test_cleanupはSPECがフォルダなら何も消さない(
     )
     assert code == 1
     assert d.is_dir()
+
+
+def test_doctorはclaudeを実行できないときOSErrorで落ちず1を返す(monkeypatch, capsys):
+    monkeypatch.setattr(grill_form.shutil, "which", lambda name: "claude")
+
+    def broken(*a, **k):
+        raise PermissionError("claude")
+
+    monkeypatch.setattr(grill_form.subprocess, "run", broken)
+    assert run(monkeypatch, "doctor") == 1
+    assert "NG: Playwright MCP" in capsys.readouterr().out

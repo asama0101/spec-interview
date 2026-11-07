@@ -37,6 +37,7 @@ def test_scanは対象の拡張子のファイルだけを返す(root):
 def test_scanは除外の名前を出さない(root):
     for d in (".git", "node_modules", "__pycache__", "docs"):
         (root / d).mkdir()
+    touch(root / "docs", "in-docs.md")
     touch(root, ".hidden.md", "~$lock.docx", "ok.md")
     tree = folder_scan.scan(root)
     assert [c["name"] for c in tree["dirs"]] == ["docs"]
@@ -71,19 +72,20 @@ def test_scanは200件ちょうどならtruncatedを立てない(root):
 
 def test_scanは読めないフォルダを中身なしで出す(root, monkeypatch):
     (root / "locked").mkdir()
-    real = Path.iterdir
+    real = os.scandir
 
-    def deny(self):
-        if self.name == "locked":
+    def deny(path):
+        if Path(path).name == "locked":
             raise PermissionError("denied")
-        return real(self)
+        return real(path)
 
-    monkeypatch.setattr(Path, "iterdir", deny)
+    monkeypatch.setattr(os, "scandir", deny)
     tree = folder_scan.scan(root)
     locked = tree["dirs"][0]
     assert locked["name"] == "locked"
     assert locked["dirs"] == []
     assert locked["files"] == []
+    assert locked["truncated"] is True
 
 
 def test_scanはシンボリックリンクを辿らない(root, tmp_path):
@@ -91,7 +93,7 @@ def test_scanはシンボリックリンクを辿らない(root, tmp_path):
     target.mkdir()
     touch(target, "secret.md")
     try:
-        os.symlink(target, root / "link", target_is_directory=True)
+        (root / "link").symlink_to(target, target_is_directory=True)
     except OSError:
         pytest.skip("権限なし: Windows の開発者モード未設定")
     assert folder_scan.scan(root)["dirs"] == []
@@ -119,3 +121,14 @@ def test_scanは対象外の拡張子のファイルにlstatを呼ばない(root
     monkeypatch.setattr(folder_scan, "_skip", lambda p: calls.append(p) or real(p))
     assert folder_scan.scan(root)["files"] == ["ok.md"]
     assert len(calls) == 1
+
+
+def test_scanは対象のファイルがないフォルダを出さず上限も使わない(root, monkeypatch):
+    monkeypatch.setattr(folder_scan, "MAX_ENTRIES", 3)
+    for i in range(5):
+        (root / f"a{i}").mkdir()
+    (root / "z").mkdir()
+    touch(root / "z", "x.md")
+    tree = folder_scan.scan(root)
+    assert [d["name"] for d in tree["dirs"]] == ["z"]
+    assert tree["truncated"] is False
