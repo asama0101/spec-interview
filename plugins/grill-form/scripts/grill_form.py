@@ -90,22 +90,33 @@ def newest_file(d: Path) -> Path | None:
     # d 直下（再帰なし）で最も新しいファイル
     # 消えた・読めないファイルは飛ばす
     best, best_time = None, -1.0
-    for f in d.iterdir():
+    try:
+        files = list(d.iterdir())
+    except OSError:
+        return None
+    for f in files:
         try:
             if not f.is_file():
                 continue
             t = f.stat().st_mtime
-        except (FileNotFoundError, PermissionError):
+        except OSError:
             continue
         if t > best_time:
             best, best_time = f, t
     return best
 
 
+def mtime_of(d: Path, newest: Path | None) -> float:
+    # セッションの更新時刻。直下のファイルの最新。なければフォルダ自身。
+    # 読めないときは新しい扱いにする（読めないものを、古いと見て消さない）
+    try:
+        return (newest or d).stat().st_mtime
+    except OSError:
+        return time.time()
+
+
 def session_mtime(d: Path) -> float:
-    # セッションの更新時刻。直下のファイルの最新。なければフォルダ自身
-    f = newest_file(d)
-    return (f or d).stat().st_mtime
+    return mtime_of(d, newest_file(d))
 
 
 def prune_old(root: Path) -> None:
@@ -122,24 +133,36 @@ def one_line(text: str) -> str:
     return re.sub(r"[\t\r\n]", " ", text)
 
 
-def describe_session(d: Path) -> tuple[str, str, str, str]:
-    # (フォルダ名, テーマ, 更新日時, 最新のファイル名)
-    theme = "(不明)"
+def read_info(d: Path) -> dict:
+    # session.json を読む。なければ・壊れていれば空の辞書
     try:
-        value = json.loads((d / "session.json").read_text(encoding="utf-8")).get(
-            "theme"
-        )
-        if isinstance(value, str):
-            theme = value
-    except (OSError, ValueError, AttributeError):
-        pass
-    stamp = datetime.datetime.fromtimestamp(session_mtime(d)).strftime("%Y-%m-%d %H:%M")
-    f = newest_file(d)
+        info = json.loads((d / "session.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return info if isinstance(info, dict) else {}
+
+
+def belongs_here(info: dict) -> bool:
+    # 別の作業フォルダで始めたセッションは、再開の一覧に出さない。
+    # 作業フォルダを読めないセッションは、安全側で出す
+    cwd = info.get("cwd")
+    if not isinstance(cwd, str):
+        return True
+    return os.path.normcase(str(Path(cwd))) == os.path.normcase(
+        str(Path.cwd().resolve())
+    )
+
+
+def describe_session(
+    d: Path, info: dict, newest: Path | None, mtime: float
+) -> tuple[str, str, str, str]:
+    # (フォルダ名, テーマ, 更新日時, 最新のファイル名)
+    theme = info.get("theme")
     return (
         one_line(d.name),
-        one_line(theme),
-        stamp,
-        one_line(f.name) if f else "(なし)",
+        one_line(theme if isinstance(theme, str) else "(不明)"),
+        datetime.datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M"),
+        one_line(newest.name) if newest else "(なし)",
     )
 
 
@@ -165,7 +188,11 @@ def cmd_init(args) -> int:
     root.mkdir(parents=True, exist_ok=True)
     # 同じテーマを同じ分に呼んでも、別のフォルダにする
     tmp = tempfile.mkdtemp(prefix=f"{stamp}_{normalize_theme(args.theme)}_", dir=root)
-    info = {"theme": args.theme, "created": datetime.datetime.now().isoformat()}
+    info = {
+        "theme": args.theme,
+        "created": datetime.datetime.now().isoformat(),
+        "cwd": str(Path.cwd().resolve()),
+    }
     (Path(tmp) / "session.json").write_text(
         json.dumps(info, ensure_ascii=False), encoding="utf-8"
     )
@@ -178,11 +205,18 @@ def cmd_list(args) -> int:
     prune_old(root)
     if not root.is_dir():
         return 0
-    dirs = sorted(
-        (d for d in root.iterdir() if d.is_dir()), key=session_mtime, reverse=True
-    )
-    for d in dirs:
-        print("\t".join(describe_session(d)))
+    found = []
+    for d in root.iterdir():
+        if not d.is_dir():
+            continue
+        info = read_info(d)
+        if not belongs_here(info):
+            continue
+        newest = newest_file(d)
+        mtime = mtime_of(d, newest)
+        found.append((mtime, describe_session(d, info, newest, mtime)))
+    for _, row in sorted(found, key=lambda r: r[0], reverse=True):
+        print("\t".join(row))
     return 0
 
 
@@ -307,7 +341,7 @@ def cmd_cleanup(args) -> int:
             file=sys.stderr,
         )
         return 1
-    if not Path(args.spec).exists():
+    if not Path(args.spec).is_file():
         print("SPEC がないため何もしません（承認前は削除しません）。", file=sys.stderr)
         return 1
     if not d.is_dir():
@@ -329,6 +363,19 @@ def cmd_cleanup(args) -> int:
     return 0
 
 
+def mcp_registered(claude: str) -> bool:
+    # claude mcp get は MCP サーバーへ実際に接続するので、待ち続けないよう時間を区切る
+    try:
+        return not subprocess.run(  # noqa: S603 固定の引数で claude を呼ぶ
+            [claude, "mcp", "get", "playwright"],
+            capture_output=True,
+            check=False,
+            timeout=30,
+        ).returncode
+    except subprocess.TimeoutExpired:
+        return False
+
+
 def cmd_doctor(args) -> int:
     ng = []
     if sys.version_info < MIN_PYTHON:
@@ -338,10 +385,11 @@ def cmd_doctor(args) -> int:
         ng.append(
             "claude コマンドが見つかりません（Playwright MCP の確認に使います）。"
         )
-    elif subprocess.run(  # noqa: S603 固定の引数で claude を呼ぶ
-        [claude, "mcp", "get", "playwright"], capture_output=True, check=False
-    ).returncode:
-        ng.append("Playwright MCP が登録されていません（README の導入方法の手順 3）。")
+    elif not mcp_registered(claude):
+        ng.append(
+            "Playwright MCP を確認できません。`playwright` の名前で登録されていないか、"
+            "応答がありません（README の導入方法の手順 3）。"
+        )
     for msg in ng:
         print(f"NG: {msg}")
     if not ng:

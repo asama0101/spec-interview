@@ -110,3 +110,12 @@ def test_scanは全体の件数にも上限を持つ(root, monkeypatch):
     tree = folder_scan.scan(root)
     assert count(tree) <= 31
     assert tree["truncated"] is True
+
+
+def test_scanは対象外の拡張子のファイルにlstatを呼ばない(root, monkeypatch):
+    touch(root, *(f"f{i}.py" for i in range(50)), "ok.md")
+    calls = []
+    real = folder_scan._skip
+    monkeypatch.setattr(folder_scan, "_skip", lambda p: calls.append(p) or real(p))
+    assert folder_scan.scan(root)["files"] == ["ok.md"]
+    assert len(calls) == 1

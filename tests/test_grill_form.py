@@ -803,3 +803,75 @@ def test_listは古い空のフォルダを削除し新しい空のフォルダ�
     rows = list_rows(monkeypatch, capsys, data_dir)
     assert [r[0] for r in rows] == ["empty-fresh"]
     assert not old.exists()
+
+
+def test_initはsession_jsonに作業フォルダを書く(data_dir, workdir, monkeypatch, capsys):
+    run(monkeypatch, "init", "--theme", "demo", "--data", str(data_dir))
+    d = Path(capsys.readouterr().out.strip())
+    info = json.loads((d / "session.json").read_text(encoding="utf-8"))
+    assert info["cwd"] == str(workdir.resolve())
+
+
+def test_listは別の作業フォルダのセッションを出さない(
+    data_dir, workdir, tmp_path, monkeypatch, capsys
+):
+    here = make_old_session(data_dir, "here", 1)
+    other = make_old_session(data_dir, "other", 1)
+    nocwd = make_old_session(data_dir, "nocwd", 1)
+    for d, cwd in ((here, str(workdir.resolve())), (other, str(tmp_path / "別"))):
+        (d / "session.json").write_text(
+            json.dumps({"theme": "t", "cwd": cwd}), encoding="utf-8"
+        )
+    rows = list_rows(monkeypatch, capsys, data_dir)
+    # cwd を読めないセッションは、安全側で出す
+    assert sorted(r[0] for r in rows) == [here.name, nocwd.name]
+    assert other.is_dir()
+
+
+def test_listはセッションのフォルダが読めなくても落ちない(
+    data_dir, monkeypatch, capsys
+):
+    make_old_session(data_dir, "ok", 1)
+    make_old_session(data_dir, "bad", 1)
+    real_iterdir = Path.iterdir
+
+    def broken(self):
+        if self.name == "bad":
+            raise PermissionError(self.name)
+        return real_iterdir(self)
+
+    monkeypatch.setattr(Path, "iterdir", broken)
+    rows = list_rows(monkeypatch, capsys, data_dir)
+    assert "ok" in [r[0] for r in rows]
+    assert (data_dir / "sessions" / "bad").is_dir()
+
+
+def test_doctorはclaudeが応答しないときタイムアウトで1を返す(monkeypatch, capsys):
+    monkeypatch.setattr(grill_form.shutil, "which", lambda name: "claude")
+
+    def hang(*a, **k):
+        raise subprocess.TimeoutExpired("claude", k["timeout"])
+
+    monkeypatch.setattr(grill_form.subprocess, "run", hang)
+    assert run(monkeypatch, "doctor") == 1
+    assert "NG: Playwright MCP" in capsys.readouterr().out
+
+
+def test_cleanupはSPECがフォルダなら何も消さない(
+    data_dir, workdir, monkeypatch, capsys
+):
+    run(monkeypatch, "init", "--theme", "demo", "--data", str(data_dir))
+    d = Path(capsys.readouterr().out.strip())
+    code = run(
+        monkeypatch,
+        "cleanup",
+        "--data",
+        str(data_dir),
+        "--session-dir",
+        str(d),
+        "--spec",
+        str(workdir),
+        "--yes",
+    )
+    assert code == 1
+    assert d.is_dir()

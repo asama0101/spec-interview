@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import stat
 from pathlib import Path
 
@@ -43,15 +44,18 @@ def _node(path: Path, depth: int, budget: list[int]) -> dict:
         "truncated": False,
     }
     try:
-        entries = sorted(path.iterdir(), key=lambda p: p.name.lower())
+        with os.scandir(path) as it:
+            entries = sorted(it, key=lambda e: e.name.lower())
     except OSError:
         return node  # 読めないフォルダは中身なしで出す
     kept = 0
-    for p in entries:
-        if _skip(p):
+    for e in entries:
+        is_dir = e.is_dir(follow_symlinks=False)
+        # 対象外の拡張子は、lstat を呼ぶ前に落とす（大きなフォルダで遅くならないように）
+        if not is_dir and Path(e.name).suffix.lower() not in EXTS:
             continue
-        is_dir = p.is_dir()
-        if not is_dir and p.suffix.lower() not in EXTS:
+        p = Path(e.path)
+        if _skip(p):
             continue
         if is_dir and depth + 1 > MAX_DEPTH:
             continue
