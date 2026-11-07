@@ -5,7 +5,7 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
+import time
 from pathlib import Path
 
 import pytest
@@ -28,12 +28,9 @@ def workdir(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def temp_home(tmp_path, monkeypatch):
-    # OS の一時フォルダを tmp_path 配下に向ける
-    t = tmp_path / "os-temp"
-    t.mkdir()
-    monkeypatch.setattr(tempfile, "gettempdir", lambda: str(t))
-    return t
+def data_dir(tmp_path):
+    # 置き場（--data）。空白と日本語を含める
+    return tmp_path / "データ data"
 
 
 def run(monkeypatch, *argv):
@@ -111,82 +108,114 @@ def test_spec_pathサブコマンドは_parentを受け付けない(workdir, mon
     assert e.value.code == 2
 
 
-def test_initは一時セッションのパスだけを1行で出力する(temp_home, monkeypatch, capsys):
-    assert run(monkeypatch, "init", "--theme", "demo") == 0
-    lines = capsys.readouterr().out.splitlines()
-    assert len(lines) == 1
-    assert Path(lines[0]).is_dir()
-    assert Path(lines[0]).parent == temp_home.resolve() / "grill-form"
-
-
-def make_session(temp_home, monkeypatch, capsys):
-    run(monkeypatch, "init", "--theme", "demo")
+def make_session(data_dir, monkeypatch, capsys):
+    run(monkeypatch, "init", "--theme", "demo", "--data", str(data_dir))
     return Path(capsys.readouterr().out.strip())
 
 
-def test_initは同じテーマを続けて呼んでも別のフォルダを作る(
-    temp_home, monkeypatch, capsys
-):
-    first = make_session(temp_home, monkeypatch, capsys)
-    second = make_session(temp_home, monkeypatch, capsys)
-    assert first != second
-
-
-def test_cleanupはSPECがなければ何も消さない(temp_home, workdir, monkeypatch, capsys):
-    d = make_session(temp_home, monkeypatch, capsys)
-    code = run(
+def cleanup(monkeypatch, data_dir, d, spec, *extra):
+    return run(
         monkeypatch,
         "cleanup",
+        "--data",
+        str(data_dir),
         "--session-dir",
         str(d),
         "--spec",
-        str(workdir / "none.md"),
-        "--yes",
+        str(spec),
+        *extra,
     )
-    assert code == 1
-    assert d.is_dir()
 
 
-def test_cleanupは_yesなしでは消さない(temp_home, workdir, monkeypatch, capsys):
-    d = make_session(temp_home, monkeypatch, capsys)
-    spec = workdir / "SPEC-demo.md"
-    spec.write_text("x", encoding="utf-8")
-    code = run(monkeypatch, "cleanup", "--session-dir", str(d), "--spec", str(spec))
-    assert code == 0
-    assert d.is_dir()
-
-
-def test_cleanupは_yesで一時セッションだけを消してSPECは残す(
-    temp_home, workdir, monkeypatch, capsys
+def test_initは_data配下のsessionsにフォルダとsession_jsonを作る(
+    data_dir, monkeypatch, capsys
 ):
-    d = make_session(temp_home, monkeypatch, capsys)
+    assert run(monkeypatch, "init", "--theme", "demo", "--data", str(data_dir)) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert len(lines) == 1
+    d = Path(lines[0])
+    assert d.is_dir()
+    assert d.parent == data_dir.resolve() / "sessions"
+    info = json.loads((d / "session.json").read_text("utf-8"))
+    assert info["theme"] == "demo"
+    datetime.datetime.fromisoformat(info["created"])
+
+
+@pytest.mark.parametrize("cmd", ["init", "cleanup"])
+@pytest.mark.parametrize("data", [None, ""])
+def test_initとcleanupは_dataなしと空文字でエラーにする(
+    cmd, data, monkeypatch, tmp_path
+):
+    argv = (
+        ["--theme", "t"]
+        if cmd == "init"
+        else ["--session-dir", str(tmp_path), "--spec", str(tmp_path)]
+    )
+    if data is not None:
+        argv += ["--data", data]
+    with pytest.raises(SystemExit) as e:
+        run(monkeypatch, cmd, *argv)
+    assert e.value.code == 2
+
+
+def test_initは同じテーマを続けて呼んでも別のフォルダを作る(
+    data_dir, monkeypatch, capsys
+):
+    first = make_session(data_dir, monkeypatch, capsys)
+    second = make_session(data_dir, monkeypatch, capsys)
+    assert first != second
+
+
+def test_cleanupはSPECがなければ何も消さない(data_dir, workdir, monkeypatch, capsys):
+    d = make_session(data_dir, monkeypatch, capsys)
+    assert cleanup(monkeypatch, data_dir, d, workdir / "none.md", "--yes") == 1
+    assert d.is_dir()
+
+
+def test_cleanupは_yesなしでは消さない(data_dir, workdir, monkeypatch, capsys):
+    d = make_session(data_dir, monkeypatch, capsys)
     spec = workdir / "SPEC-demo.md"
     spec.write_text("x", encoding="utf-8")
-    code = run(
-        monkeypatch, "cleanup", "--session-dir", str(d), "--spec", str(spec), "--yes"
-    )
-    assert code == 0
+    assert cleanup(monkeypatch, data_dir, d, spec) == 0
+    assert d.is_dir()
+
+
+def test_cleanupは_yesでセッションだけを消してSPECは残す(
+    data_dir, workdir, monkeypatch, capsys
+):
+    d = make_session(data_dir, monkeypatch, capsys)
+    spec = workdir / "SPEC-demo.md"
+    spec.write_text("x", encoding="utf-8")
+    assert cleanup(monkeypatch, data_dir, d, spec, "--yes") == 0
     assert not d.exists()
     assert spec.read_text("utf-8") == "x"
     assert sorted(p.name for p in workdir.iterdir()) == ["SPEC-demo.md"]
 
 
-def test_cleanupは一時セッション以外を消さない(temp_home, workdir, monkeypatch):
-    other = workdir / "other"
-    other.mkdir()
+def test_cleanupは_dataのsessions直下だけを消す(data_dir, workdir, monkeypatch, capsys):
     spec = workdir / "SPEC-demo.md"
     spec.write_text("x", encoding="utf-8")
-    code = run(
-        monkeypatch,
-        "cleanup",
-        "--session-dir",
-        str(other),
-        "--spec",
-        str(spec),
-        "--yes",
-    )
-    assert code == 1
-    assert other.is_dir()
+    sessions = data_dir / "sessions"
+    grandchild = sessions / "x" / "y"
+    grandchild.mkdir(parents=True)
+    outside = workdir / "other"
+    outside.mkdir()
+    for target in (sessions, outside, grandchild):
+        assert cleanup(monkeypatch, data_dir, target, spec, "--yes") == 1
+        assert target.is_dir()
+    direct = sessions / "x"
+    assert cleanup(monkeypatch, data_dir, direct, spec, "--yes") == 0
+    assert not direct.exists()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows のパス規則")
+def test_cleanupは大文字小文字を区別しない(data_dir, workdir, monkeypatch, capsys):
+    d = make_session(data_dir, monkeypatch, capsys)
+    spec = workdir / "SPEC-demo.md"
+    spec.write_text("x", encoding="utf-8")
+    other_case = Path(str(data_dir).swapcase())
+    assert cleanup(monkeypatch, other_case, d, spec, "--yes") == 0
+    assert not d.exists()
 
 
 def render_intake(monkeypatch, tmp_path, capsys) -> str:
@@ -541,18 +570,12 @@ def test_ツリーの切り捨て通知はフォルダだけに限らない文�
     )
 
 
-def test_空白と日本語を含むパスで実コマンドのinitとrenderが通る(tmp_path):
+def test_空白と日本語を含むパスで実コマンドのinitとrenderとcleanupが通る(tmp_path):
     script = ROOT / "plugins" / "grill-form" / "scripts" / "grill_form.py"
     work = tmp_path / "作業 フォルダ"
     work.mkdir()
-    os_temp = tmp_path / "一時 temp"
-    os_temp.mkdir()
-    env = {
-        **os.environ,
-        "TEMP": str(os_temp),
-        "TMP": str(os_temp),
-        "PYTHONUTF8": "1",
-    }
+    data = tmp_path / "データ data"
+    env = {**os.environ, "PYTHONUTF8": "1"}
     intake = work / "入力 intake.json"
     intake.write_text(json.dumps({"request": "依頼 本文"}), encoding="utf-8")
 
@@ -567,11 +590,11 @@ def test_空白と日本語を含むパスで実コマンドのinitとrenderが�
             check=False,
         )
 
-    init = call("init", "--theme", "demo")
+    init = call("init", "--theme", "demo", "--data", str(data))
     assert init.returncode == 0, init.stderr
     session = Path(init.stdout.strip())
     assert session.is_dir()
-    assert os_temp.resolve() in session.resolve().parents
+    assert session.resolve().parent == data.resolve() / "sessions"
 
     render = call(
         "render", "--session-dir", str(session), "--intake", "--input", str(intake)
@@ -579,3 +602,204 @@ def test_空白と日本語を含むパスで実コマンドのinitとrenderが�
     assert render.returncode == 0, render.stderr
     html = Path(render.stdout.strip()).read_text(encoding="utf-8")
     assert intake_data(html)["request"] == "依頼 本文"
+
+    spec = work / "SPEC 仕様.md"
+    spec.write_text("x", encoding="utf-8")
+    gone = call(
+        "cleanup",
+        "--data",
+        str(data),
+        "--session-dir",
+        str(session),
+        "--spec",
+        str(spec),
+        "--yes",
+    )
+    assert gone.returncode == 0, gone.stderr
+    assert not session.exists()
+
+
+class _Done:
+    def __init__(self, returncode):
+        self.returncode = returncode
+
+
+def _fake_claude(monkeypatch, which="claude", returncode=0):
+    # 外部コマンド（claude）だけを置き換える
+    monkeypatch.setattr(grill_form.shutil, "which", lambda name: which)
+    monkeypatch.setattr(grill_form.subprocess, "run", lambda *a, **k: _Done(returncode))
+
+
+def test_doctorは依存がそろっていれば0で終わる(monkeypatch, capsys):
+    _fake_claude(monkeypatch)
+    assert run(monkeypatch, "doctor") == 0
+    assert "NG" not in capsys.readouterr().out
+
+
+def test_doctorはclaudeがなければ不足を出して1で終わる(monkeypatch, capsys):
+    _fake_claude(monkeypatch, which=None)
+    assert run(monkeypatch, "doctor") == 1
+    assert "NG: claude" in capsys.readouterr().out
+
+
+def test_doctorはPlaywright_MCPが未登録なら1で終わる(monkeypatch, capsys):
+    _fake_claude(monkeypatch, returncode=1)
+    assert run(monkeypatch, "doctor") == 1
+    assert "NG: Playwright MCP" in capsys.readouterr().out
+
+
+def test_doctorはPythonが古ければ1で終わる(monkeypatch, capsys):
+    _fake_claude(monkeypatch)
+    monkeypatch.setattr(grill_form, "MIN_PYTHON", (99, 0))
+    assert run(monkeypatch, "doctor") == 1
+    assert "NG: Python" in capsys.readouterr().out
+
+
+def test_doctorは何も作らない(monkeypatch, workdir, tmp_path):
+    _fake_claude(monkeypatch)
+    run(monkeypatch, "doctor")
+    assert list(workdir.iterdir()) == []
+    assert list(tmp_path.iterdir()) == [workdir]
+
+
+DAY = 86400
+
+
+def make_old_session(data_dir, name, age_days, files=("session.json",), theme="t"):
+    # 直下のファイルの mtime を age_days 日前にしたセッションを作る
+    d = data_dir / "sessions" / name
+    d.mkdir(parents=True, exist_ok=True)
+    stamp = time.time() - age_days * DAY
+    for f in files:
+        p = d / f
+        if f == "session.json":
+            p.write_text(json.dumps({"theme": theme}), encoding="utf-8")
+        else:
+            p.write_text("x", encoding="utf-8")
+        os.utime(p, (stamp, stamp))
+    return d
+
+
+def list_rows(monkeypatch, capsys, data_dir):
+    assert run(monkeypatch, "list", "--data", str(data_dir)) == 0
+    return [ln.split("\t") for ln in capsys.readouterr().out.splitlines()]
+
+
+def test_listは新しい順にタブ区切りで出す(data_dir, monkeypatch, capsys):
+    make_old_session(data_dir, "old", 3, ("session.json", "a.html"), theme="古い")
+    make_old_session(data_dir, "new", 1, ("session.json", "b.html"), theme="新しい")
+    # b.html より新しいファイルを new に足す
+    newest = data_dir / "sessions" / "new" / "c.md"
+    newest.write_text("x", encoding="utf-8")
+    rows = list_rows(monkeypatch, capsys, data_dir)
+    assert [r[0] for r in rows] == ["new", "old"]
+    assert all(len(r) == 4 for r in rows)
+    assert rows[0][1] == "新しい"
+    assert rows[0][3] == "c.md"
+    assert rows[1][3] in ("session.json", "a.html")
+    datetime.datetime.strptime(rows[0][2], "%Y-%m-%d %H:%M")
+
+
+def test_listは_dataがなくても何も出さず0で終わる(data_dir, monkeypatch, capsys):
+    assert run(monkeypatch, "list", "--data", str(data_dir)) == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_listは14日より古いセッションを削除し13日前は残す(
+    data_dir, monkeypatch, capsys
+):
+    make_old_session(data_dir, "d15", 15, ("session.json", "a.html"))
+    make_old_session(data_dir, "d13", 13)
+    # フォルダ自体は古いが、中のファイルは新しい
+    fresh = make_old_session(data_dir, "dirold", 1)
+    old = time.time() - 30 * DAY
+    os.utime(fresh, (old, old))
+    rows = list_rows(monkeypatch, capsys, data_dir)
+    assert sorted(r[0] for r in rows) == ["d13", "dirold"]
+    assert not (data_dir / "sessions" / "d15").exists()
+
+
+@pytest.mark.parametrize("content", [None, "{broken", '{"theme": 1}'])
+def test_listはsession_jsonが壊れていてもテーマを不明にする(
+    content, data_dir, monkeypatch, capsys
+):
+    d = make_old_session(data_dir, "s", 1)
+    if content is None:
+        (d / "session.json").unlink()
+    else:
+        (d / "session.json").write_text(content, encoding="utf-8")
+    rows = list_rows(monkeypatch, capsys, data_dir)
+    assert rows[0][1] == "(不明)"
+
+
+def test_listはテーマのタブと改行を空白にして1行4列を保つ(
+    data_dir, monkeypatch, capsys
+):
+    make_old_session(data_dir, "s", 1, theme="a\tb\r\nc\nd")
+    rows = list_rows(monkeypatch, capsys, data_dir)
+    assert len(rows) == 1
+    assert len(rows[0]) == 4
+    assert rows[0][1] == "a b  c d"
+
+
+def test_listはファイルがないセッションの最新ファイル名をなしにする(
+    data_dir, monkeypatch, capsys
+):
+    d = make_old_session(data_dir, "s", 1)
+    (d / "session.json").unlink()
+    rows = list_rows(monkeypatch, capsys, data_dir)
+    assert rows[0][0] == "s"
+    assert rows[0][3] == "(なし)"
+
+
+@pytest.mark.parametrize("data", [None, ""])
+def test_listは_dataなしと空文字でエラーにする(data, monkeypatch):
+    argv = [] if data is None else ["--data", data]
+    with pytest.raises(SystemExit) as e:
+        run(monkeypatch, "list", *argv)
+    assert e.value.code == 2
+
+
+def test_listは読めないファイルを飛ばして残りで続ける(data_dir, monkeypatch, capsys):
+    d = make_old_session(data_dir, "s", 1, ("session.json", "a.html"))
+    real_stat = Path.stat
+
+    def flaky(self, *args, **kwargs):
+        if self.name == "a.html":
+            raise PermissionError(self.name)
+        return real_stat(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", flaky)
+    rows = list_rows(monkeypatch, capsys, data_dir)
+    assert rows[0][0] == "s"
+    assert rows[0][3] == "session.json"
+    assert d.exists()
+
+
+def test_listは消えたファイルを飛ばす(data_dir, monkeypatch, capsys):
+    make_old_session(data_dir, "s", 1, ("session.json", "gone.html"))
+    real_stat = Path.stat
+
+    def vanishing(self, *args, **kwargs):
+        if self.name == "gone.html":
+            raise FileNotFoundError(self.name)
+        return real_stat(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", vanishing)
+    rows = list_rows(monkeypatch, capsys, data_dir)
+    assert rows[0][3] == "session.json"
+
+
+def test_listは古い空のフォルダを削除し新しい空のフォルダは残す(
+    data_dir, monkeypatch, capsys
+):
+    root = data_dir / "sessions"
+    old = root / "empty-old"
+    fresh = root / "empty-fresh"
+    old.mkdir(parents=True)
+    fresh.mkdir()
+    stamp = time.time() - 15 * DAY
+    os.utime(old, (stamp, stamp))
+    rows = list_rows(monkeypatch, capsys, data_dir)
+    assert [r[0] for r in rows] == ["empty-fresh"]
+    assert not old.exists()

@@ -337,3 +337,83 @@ def test_READMEに開発者向けの案内がない():
 def test_READMEにscriptsの置き場が書かれている():
     text = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "plugins/grill-form/scripts/" in text
+
+
+@pytest.mark.parametrize("sub", ["init", "spec-path", "render", "cleanup", "list"])
+def test_allowed_toolsはサブコマンドごとに絞る(text, sub):
+    allowed = parse_frontmatter(text)["allowed-tools"]
+    assert f'grill_form.py" {sub} *)' in allowed
+    assert 'grill_form.py" *)' not in allowed
+
+
+def test_READMEにdoctorの呼び出し方がある():
+    assert "grill_form.py doctor" in (ROOT / "README.md").read_text(encoding="utf-8")
+
+
+def test_SKILLに起動時のlistと再開の手順がある(text):
+    assert 'grill_form.py" list --data "${CLAUDE_PLUGIN_DATA}"' in text
+    assert "未完了" in text
+    assert "再開" in text
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        "intake.html",
+        "round-N.html",
+        "round-N.answers.md",
+        "final-K.html",
+        "final-K.answers.md",
+        "承認",
+        "修正あり",
+        "どれにも当てはまらない",
+    ],
+)
+def test_SKILLの再開の表に全状態がある(text, state):
+    assert state in text
+
+
+@pytest.mark.parametrize("sub", ["init", "cleanup"])
+def test_SKILLのinitとcleanupにdataを渡している(text, sub):
+    lines = [ln for ln in text.splitlines() if f'grill_form.py" {sub}' in ln]
+    body = [ln for ln in lines if not ln.startswith("allowed-tools:")]
+    assert body
+    assert all('--data "${CLAUDE_PLUGIN_DATA}"' in ln for ln in body)
+
+
+@pytest.mark.parametrize("name", ["SKILL", "README", "development"])
+def test_セッションの記述に3日と一時セッションが残っていない(name):
+    path = {
+        "SKILL": SKILL_MD,
+        "README": ROOT / "README.md",
+        "development": ROOT / "docs" / "development.md",
+    }[name]
+    body = path.read_text(encoding="utf-8")
+    assert "3 日" not in body
+    assert "一時セッション" not in body
+
+
+def test_READMEに再開と14日の説明がある():
+    body = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "14 日" in body
+    assert "再開" in body
+
+
+def test_SKILLが質問JSONとfinal_JSONのファイル名を決めている(text):
+    assert "`<D>/round-N.json`" in text
+    assert "`<D>/final-K.json`" in text
+
+
+def test_SKILLの再開の表は新しい段階から先に一致したものを使う(text):
+    assert "新しい段階" in text
+    assert "最初に一致した行" in text
+
+
+def test_SKILLのintake_answersの行は更新があれば手順2に戻る(text):
+    row = next(ln for ln in text.splitlines() if "`intake.answers.md` あり" in ln)
+    assert "## 更新" in row
+
+
+def test_SKILLの再開の選択肢は新しい3件までにする(text):
+    assert "新しい 3 件" in text
+    assert "その他" in text

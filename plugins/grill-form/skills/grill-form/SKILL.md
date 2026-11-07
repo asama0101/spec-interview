@@ -2,7 +2,7 @@
 name: grill-form
 description: grilling（質問攻めで合意を作る手法）を HTML のフォームで行い、候補選択・コメント・保留で内容を詰めて、最後に SPEC 形式で結果を出す。ユーザーが「HTML で grilling」「grill-form」と明示したときだけ使う。単に「grill して」と頼まれただけのときは使わない（その場合は grilling スキルを使う）。
 disable-model-invocation: true
-allowed-tools: Bash(python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" *) Bash(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" *)
+allowed-tools: Bash(python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" init *) Bash(python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" spec-path *) Bash(python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" render *) Bash(python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" cleanup *) Bash(python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" list *) Bash(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" init *) Bash(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" spec-path *) Bash(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" render *) Bash(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" cleanup *) Bash(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" list *) Bash(python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" doctor) Bash(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" doctor)
 ---
 
 # grill-form
@@ -23,11 +23,29 @@ allowed-tools: Bash(python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" *) Bash
 - 質問 ID（`Q1`, `Q2`…）はセッション通しで一意にする（ラウンドでリセットしない）。
 
 ## 手順
-1. セッション作成: `python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" init --theme "<テーマ>"` を実行する。
+0. 未完了セッションの確認（起動時に毎回行う）: `python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" list --data "${CLAUDE_PLUGIN_DATA}"` を実行する。14 日より古いセッションは、このとき先に削除される。
+   - 出力は 1 行に 1 セッションで、フォルダ名・テーマ・更新日時・最新のファイル名をタブで区切る（更新日時の新しい順）。出力が空なら、未完了のセッションはない。手順1へ進む。
+   - 出力があるときは、AskUserQuestion の選択肢で聞く。「新規」と、新しい 3 件までのセッションの「再開（テーマ・更新日時・最新のファイル名）」を新しい順に出す（選択肢は 4 つまで）。それより古いセッションは「その他」にフォルダ名を入力して選んでもらう。
+   - 「新規」なら、手順1へ進む。
+   - 「再開」なら、そのセッションのフォルダ（以下 `<D>`）の中のファイルを読み、下の表で続きの手順を決めて、そこから始める。テーマは `<D>/session.json` の `theme` を使い、SPEC の保存先は手順10の `spec-path --theme` で決める。質問 ID は通しで一意なので、既存の `round-*.json` の最大の ID の次から付ける。
+
+     表は新しい段階から順に照らし、最初に一致した行を使う（`final-*`、`round-*`、`intake-*` の順）。
+
+     | セッション内の状態 | 続き |
+     | --- | --- |
+     | `final-K.answers.md` が `承認`（K は最大） | SPEC を保存して片付ける（手順10） |
+     | `final-K.answers.md` が `修正あり`（K は最大） | コメントを反映し、K を 1 増やして手順9を繰り返す |
+     | `final-K.html` あり、`final-K.answers.md` なし（K は最大） | その HTML を開き直して、送信を待つ（手順9） |
+     | `round-N.answers.md` あり、次の `round-(N+1).html` なし（N は最大） | 回答を読んで design tree を更新し、次のラウンドへ（手順8） |
+     | `round-N.html` あり、`round-N.answers.md` なし（N は最大） | その HTML を開き直して、送信を待つ（手順6〜7） |
+     | `intake.answers.md` あり、`round-0.*` なし | 回答に `## 更新` があれば手順2の作り直し（`render --intake --answers`）へ。なければ回答を読み、事前確認（手順3）から |
+     | `intake.html` だけ（`intake.answers.md` なし） | 入力フォームを開き直して、送信を待つ（手順2） |
+     | 上のどれにも当てはまらない | 状態をユーザーに見せて、続け方を聞く |
+1. セッション作成: `python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" init --data "${CLAUDE_PLUGIN_DATA}" --theme "<テーマ>"` を実行する。
    - テーマは ASCII の短い名前にする（Windows の Git Bash 経由の日本語引数は文字化けするため。例: `api-design`）。
-   - 出力は 1 行で、OS の一時フォルダ配下の一時セッション（以下 `<D>`）。HTML・回答・質問 JSON など、最終成果物以外はすべてここに置く。
+   - 出力は 1 行で、`${CLAUDE_PLUGIN_DATA}/sessions/` 配下のセッション（以下 `<D>`）。HTML・回答・質問 JSON など、最終成果物以外はすべてここに置く。
    - SPEC の保存先（以下 `<S>`）は、手順10で決める。
-   - `init` は 3 日より古い一時セッションも削除する。
+   - セッションは、承認して SPEC を保存するまで残り、中断しても再開できる。放置したものは `list` が 14 日後に削除する。
 2. 入力フォーム（毎回行う）: 依頼文・参考資料を集める。
    - 起動時にテーマ（スキルの引数・同じメッセージの依頼内容）が一緒に送られている場合は、その原文を `<D>/intake.json` に `{"request": "<原文>"}` として書き（Write）、`--input "<D>/intake.json"` を付けて依頼文欄に転記しておく（ユーザーは確認・修正だけする）。なければ空欄のままにする。
    - `python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" render --session-dir "<D>" --intake [--input "<D>/intake.json"]` で `<D>/intake.html` を生成する（作業フォルダの一覧を調べて埋め込む。作業フォルダはカレントフォルダ）。
@@ -43,18 +61,18 @@ allowed-tools: Bash(python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" *) Bash
    - 障壁: ゴールに至るまでの障害・懸念・つまずきそうな点を、ユーザーにヒアリングする。
    - 制約: 期限・予算・技術・既存資産・変更してはいけないもの・守るべきルールなど。
    回答は以降のラウンドの前提にし、SPEC では既存項目に吸収する（目的・ゴール→概要、障壁→リスク、制約→非目標・決定ログ）。
-4. 質問 JSON を書く。置き場所は `<D>`。形式は `grill_form.py` の docstring を参照（`title`, `intro`, `questions[]` = `id`, `title`, `body`, `multi`, `options[]`（省略可）= `key`, `label`, `desc`、`recommended[]`, `reason`）。
+4. 質問 JSON を書く。置き場所は `<D>`、ファイル名は `<D>/round-N.json`（手順3の事前確認は `round-0.json`）。形式は `grill_form.py` の docstring を参照（`title`, `intro`, `questions[]` = `id`, `title`, `body`, `multi`, `options[]`（省略可）= `key`, `label`, `desc`、`recommended[]`, `reason`）。
 5. 生成: `python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" render --session-dir "<D>" --round <N> --input <json>` → `<D>/round-N.html`。
 6. Playwright MCP で `browser_navigate` により `file://` URL を開く。
    - `file:///C:/.../round-N.html` のように、スラッシュ区切りにする。
    - ユーザーに「回答して『送信』を押してください」と伝える。
-   - Playwright MCP の `browser_*` ツールが使えない場合は、README の「Playwright MCP を登録する」を案内して止まる（スキルには MCP を同梱していない）。
+   - Playwright MCP の `browser_*` ツールが使えない場合は、README の「Playwright MCP を登録する」を案内して止まる（スキルには MCP を同梱していない）。`python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" doctor` で不足を確認できる。
 7. 送信を自動で待つ（ユーザーに「完了」と入力させない）。`browser_evaluate` で次の関数を実行すると、送信されるか約100秒たつまでブロックして結果を返す。
    `() => new Promise(res => { const t0 = Date.now(); const id = setInterval(() => { if (window.__submitted || Date.now() - t0 > 100000) { clearInterval(id); res({ submitted: !!window.__submitted, md: window.__answersMd }); } }, 500); })`
    - `submitted` が false なら、まだ送信されていない。同じ呼び出しを繰り返す（合計約30分、18回まで）。
    - ユーザーがターミナルに何か入力した場合は、待ちをやめてその内容に従う（「完了」なら即座に下の確認へ進む）。
    - 上限を超えたら、続行方法をユーザーに聞く。
-   - `md` に `## 中止` がある場合は、ユーザーが HTML の「中止」ボタンで grilling を打ち切った。回答ファイルは書かず、SPEC も作らず、以降の手順に進まない。中止したことと、一時セッション `<D>` が残っていること（3 日後に自動削除）を 1 行で報告して終わる。
+   - `md` に `## 中止` がある場合は、ユーザーが HTML の「中止」ボタンで grilling を打ち切った。回答ファイルは書かず、SPEC も作らず、以降の手順に進まない。中止したことと、セッション `<D>` が残っていて再開できること（14 日後に自動で削除される）を 1 行で報告して終わる。
    - `submitted` が true で中止でないなら、`md` をそのまま `<D>/round-N.answers.md` に書く（Write）。
    - false（未送信・ウィンドウを閉じた等）なら、書かずに続行方法を聞く。コピーボタンで Markdown を貼ってもらう手もある。
 8. 回答を読んで design tree を更新し、次のラウンド（手順4〜）へ。ラウンドごとに新しい HTML を生成する。
@@ -76,10 +94,10 @@ allowed-tools: Bash(python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" *) Bash
    - 直したあとの再レビューは 1 回まで。指摘があった観点のレビュアーだけに行う。手順4に戻ったときは、再レビューの回数を 0 に戻す。再レビューのあとに残る指摘は、SPEC のリスクに書く。
    - サブエージェントが使えないときは、同じ 5 つの観点で、自分で SPEC 案を順に読む。
    - クロスレビューの結果は、最終確認のフォームには出さない。
-   - `{"title","intro","summary"}` の JSON で `render --final --round <K>` を実行して `<D>/final-K.html` を開く。K は最終確認の版番号で、1 から始めて修正のたびに 1 増やす（前の版を上書きしない）。
+   - `{"title","intro","summary"}` の JSON（`<D>/final-K.json`）で `render --final --round <K>` を実行して `<D>/final-K.html` を開く。K は最終確認の版番号で、1 から始めて修正のたびに 1 増やす（前の版を上書きしない）。
    - 送信の待ち方と回答の記録は手順7と同じ（`<D>/final-K.answers.md` に書く）。
    - 回答が `修正あり` なら、コメントを反映し、K を 1 増やして、この手順9を繰り返す。`承認` なら、手順10へ進む。
-10. `承認` なら、SPEC を保存して、一時セッションを片付ける。
+10. `承認` なら、SPEC を保存して、セッションを片付ける。
    - まず `python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" spec-path --theme "<テーマ>"` を実行し、出力を SPEC の保存先 `<S>`（`<作業フォルダ>/docs/grill-form/specs/<日付>-<テーマ>-design.md`）とする。`spec-path` は、保存先のフォルダがなければ作る。終了コードが 1 のとき（フォルダを作れない）は、SPEC を別の場所へ書かず、標準エラーの理由を報告して止まる。承認は有効なので、ユーザーが原因を直したあとに、この手順10をやり直す。
    - 作業フォルダはカレントフォルダで決まるので、`cd` せずに実行する。
    - 承認された版の `summary` を、次の形で `<S>` に書く（Write）。frontmatter と「後続の手順」は、最終確認のフォームの `summary` には含めず、ここで足す。別のセッションに SPEC を渡すときは、このファイルを使う。
@@ -90,7 +108,7 @@ allowed-tools: Bash(python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" *) Bash
         2. 計画を保存したら、この SPEC の先頭を `status: 完了` にし、`plan:` に `<計画のパス>` を書く。
         3. 計画の実装がすべて終わったら、計画の先頭を `status: 完了` にする。
      - `<SPEC のパス>` は `docs/grill-form/specs/` の下の `<S>` のファイル名。`<計画のパス>` は、`<S>` のファイル名の `-design` を `docs/grill-form/plans/` の下で取り除いた名前。例: `docs/grill-form/specs/2026-11-03-api-design-design-2.md` の計画は `docs/grill-form/plans/2026-11-03-api-design-2.md`（連番は引き継ぐ。テーマの中の `design` は取り除かない）。
-   - 続けて、確認なしで `python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" cleanup --session-dir "<D>" --spec "<S>" --yes` を実行する。`cleanup` は一時セッション `<D>` を丸ごと削除する（一時セッション以外と、`<S>` がないときは何もしない）。
+   - 続けて、確認なしで `python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" cleanup --data "${CLAUDE_PLUGIN_DATA}" --session-dir "<D>" --spec "<S>" --yes` を実行する。`cleanup` はセッション `<D>` を丸ごと削除する（`${CLAUDE_PLUGIN_DATA}/sessions/` 直下のフォルダ以外と、`<S>` がないときは何もしない）。
    - `<S>` のパスを報告し、残るのは SPEC の 1 ファイルだけであることを伝える。質問と回答の履歴は残らない。
 
 ## 回答 Markdown の書式（ページ側が生成する）

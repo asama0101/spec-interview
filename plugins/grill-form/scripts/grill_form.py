@@ -1,10 +1,14 @@
 """grill-form スキル用のスクリプト。
 
 サブコマンド:
-  init   --theme T            一時セッションフォルダ（OS の一時フォルダ配下）を作り、
+  init   --theme T --data D   セッションフォルダ（D/sessions/ 配下）を作り、
                               そのパスを1行で出力する
                               （HTML・回答・質問 JSON を置く）。
-                              作成時に、3 日より古い一時セッションを削除する
+                              session.json にテーマと作成日時を書く
+  list   --data D             セッション（D/sessions/ 配下）を、更新の新しい順に
+                              フォルダ名・テーマ・更新日時・最新のファイル名を
+                              タブ区切りで1行ずつ出力する。
+                              14 日より古いセッションは先に削除する
   spec-path --theme T         SPEC の保存先
                               <作業フォルダ>/docs/grill-form/specs/<日付>-<テーマ>-design.md
                               を決め、フォルダを作って、パスを出力する
@@ -24,10 +28,13 @@
                               A.md は入力フォームの回答で、
                               あれば依頼文・参考資料をそこから復元する
                               （「フォルダを読み直す」の作り直し用。J.json より優先）
-  cleanup --session-dir D --spec S [--yes]
-                              一時セッション D を削除対象として表示する。
-                              --yes を付けたときだけ D を削除する。
-                              SPEC（S）がなければ何もしない（承認前は消さない）
+  doctor                      動作に必要なもの（Python の版、claude、Playwright MCP）を
+                              確認する。何も変更しない。足りないときは不足を表示し、
+                              終了コード 1 で終わる
+  cleanup --data D --session-dir S --spec P [--yes]
+                              セッション S（D/sessions/ 直下）を削除対象として表示する。
+                              --yes を付けたときだけ S を削除する。
+                              SPEC（P）がなければ何もしない（承認前は消さない）
 
 質問 JSON:
   {"title": "...", "intro": "...", "questions": [
@@ -43,8 +50,10 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
+import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -53,8 +62,8 @@ from pathlib import Path
 import folder_scan
 
 __version__ = "1.0.0"
-TEMP_ROOT_NAME = "grill-form"
-KEEP_DAYS = 3
+KEEP_DAYS = 14
+MIN_PYTHON = (3, 8)
 # 回答に出る節の順と、見出しの次の行の書き出し（本文を持つ節だけ。空は判定しない）
 INTAKE_SECTIONS = {
     "更新": "- 読み直し:",
@@ -66,18 +75,72 @@ TEMPLATE = Path(__file__).with_name("grill_form_template.html")
 INVALID = re.compile(r'[\\/:*?"<>|\s]+')
 
 
-def temp_root() -> Path:
-    return Path(tempfile.gettempdir()).resolve() / TEMP_ROOT_NAME
+def data_dir(value: str) -> Path:
+    # argparse の type=。置き場（--data）は空文字を受け付けない
+    if not value:
+        raise argparse.ArgumentTypeError("空のパスは指定できません")
+    return Path(value).resolve()
+
+
+def sessions_root(data: Path) -> Path:
+    return data / "sessions"
+
+
+def newest_file(d: Path) -> Path | None:
+    # d 直下（再帰なし）で最も新しいファイル
+    # 消えた・読めないファイルは飛ばす
+    best, best_time = None, -1.0
+    for f in d.iterdir():
+        try:
+            if not f.is_file():
+                continue
+            t = f.stat().st_mtime
+        except (FileNotFoundError, PermissionError):
+            continue
+        if t > best_time:
+            best, best_time = f, t
+    return best
+
+
+def session_mtime(d: Path) -> float:
+    # セッションの更新時刻。直下のファイルの最新。なければフォルダ自身
+    f = newest_file(d)
+    return (f or d).stat().st_mtime
 
 
 def prune_old(root: Path) -> None:
-    # 古い一時セッションを削除する（中断したセッションの掃除）
+    # 古いセッションを削除する（中断したセッションの掃除）
     limit = time.time() - KEEP_DAYS * 86400
     if not root.is_dir():
         return
     for d in root.iterdir():
-        if d.is_dir() and d.stat().st_mtime < limit:
+        if d.is_dir() and session_mtime(d) < limit:
             shutil.rmtree(d, ignore_errors=True)
+
+
+def one_line(text: str) -> str:
+    return re.sub(r"[\t\r\n]", " ", text)
+
+
+def describe_session(d: Path) -> tuple[str, str, str, str]:
+    # (フォルダ名, テーマ, 更新日時, 最新のファイル名)
+    theme = "(不明)"
+    try:
+        value = json.loads((d / "session.json").read_text(encoding="utf-8")).get(
+            "theme"
+        )
+        if isinstance(value, str):
+            theme = value
+    except (OSError, ValueError, AttributeError):
+        pass
+    stamp = datetime.datetime.fromtimestamp(session_mtime(d)).strftime("%Y-%m-%d %H:%M")
+    f = newest_file(d)
+    return (
+        one_line(d.name),
+        one_line(theme),
+        stamp,
+        one_line(f.name) if f else "(なし)",
+    )
 
 
 def normalize_theme(theme: str) -> str:
@@ -98,12 +161,28 @@ def spec_path(theme: str, today: datetime.date | None = None) -> Path:
 
 def cmd_init(args) -> int:
     stamp = datetime.datetime.now().strftime("%Y-%m-%d_%H%M")
-    root = temp_root()
-    prune_old(root)
+    root = sessions_root(args.data)
     root.mkdir(parents=True, exist_ok=True)
     # 同じテーマを同じ分に呼んでも、別のフォルダにする
     tmp = tempfile.mkdtemp(prefix=f"{stamp}_{normalize_theme(args.theme)}_", dir=root)
+    info = {"theme": args.theme, "created": datetime.datetime.now().isoformat()}
+    (Path(tmp) / "session.json").write_text(
+        json.dumps(info, ensure_ascii=False), encoding="utf-8"
+    )
     print(tmp)
+    return 0
+
+
+def cmd_list(args) -> int:
+    root = sessions_root(args.data)
+    prune_old(root)
+    if not root.is_dir():
+        return 0
+    dirs = sorted(
+        (d for d in root.iterdir() if d.is_dir()), key=session_mtime, reverse=True
+    )
+    for d in dirs:
+        print("\t".join(describe_session(d)))
     return 0
 
 
@@ -219,10 +298,12 @@ def cmd_render(args) -> int:
 
 def cmd_cleanup(args) -> int:
     d = Path(args.session_dir).resolve()
-    # 一時セッション以外（プロジェクト内など）は消さない
-    if d.parent != temp_root():
+    # セッション以外（プロジェクト内など）は消さない
+    if os.path.normcase(str(d.parent)) != os.path.normcase(
+        str(sessions_root(args.data))
+    ):
         print(
-            f"{d} は grill-form の一時セッションではないため何もしません。",
+            f"{d} はセッションではないため何もしません。",
             file=sys.stderr,
         )
         return 1
@@ -239,14 +320,33 @@ def cmd_cleanup(args) -> int:
         except OSError as e:
             print(
                 f"削除できませんでした: {e}\n"
-                "シェルのカレントフォルダが一時セッション内にないか確認してください。"
-                "SPEC は保存済みで、残った一時セッションは次回の init で"
-                "古いものから自動削除されます。",
+                "シェルのカレントフォルダがセッション内にないか確認してください。"
+                "SPEC は保存済みです。",
                 file=sys.stderr,
             )
             return 1
         print("削除しました。SPEC は残っています。")
     return 0
+
+
+def cmd_doctor(args) -> int:
+    ng = []
+    if sys.version_info < MIN_PYTHON:
+        ng.append(f"Python {'.'.join(map(str, MIN_PYTHON))} 以上が必要です。")
+    claude = shutil.which("claude")
+    if claude is None:
+        ng.append(
+            "claude コマンドが見つかりません（Playwright MCP の確認に使います）。"
+        )
+    elif subprocess.run(  # noqa: S603 固定の引数で claude を呼ぶ
+        [claude, "mcp", "get", "playwright"], capture_output=True, check=False
+    ).returncode:
+        ng.append("Playwright MCP が登録されていません（README の導入方法の手順 3）。")
+    for msg in ng:
+        print(f"NG: {msg}")
+    if not ng:
+        print("OK: 動作に必要なものはそろっています。")
+    return 1 if ng else 0
 
 
 def main() -> int:
@@ -260,7 +360,12 @@ def main() -> int:
 
     p = sub.add_parser("init")
     p.add_argument("--theme", required=True)
+    p.add_argument("--data", required=True, type=data_dir)
     p.set_defaults(fn=cmd_init)
+
+    p = sub.add_parser("list")
+    p.add_argument("--data", required=True, type=data_dir)
+    p.set_defaults(fn=cmd_list)
 
     p = sub.add_parser("spec-path")
     p.add_argument("--theme", required=True)
@@ -279,7 +384,11 @@ def main() -> int:
     )
     p.set_defaults(fn=cmd_render)
 
+    p = sub.add_parser("doctor")
+    p.set_defaults(fn=cmd_doctor)
+
     p = sub.add_parser("cleanup")
+    p.add_argument("--data", required=True, type=data_dir)
     p.add_argument("--session-dir", required=True)
     p.add_argument(
         "--spec", required=True, help="承認済み SPEC のパス（spec-path の出力）"
