@@ -886,3 +886,15 @@ def test_doctorはclaudeを実行できないときOSErrorで落ちず1を返す
     monkeypatch.setattr(grill_form.subprocess, "run", broken)
     assert run(monkeypatch, "doctor") == 1
     assert "NG: Playwright MCP" in capsys.readouterr().out
+
+
+def test_listは古いセッションを削除できないとき標準エラーに知らせる(
+    data_dir, monkeypatch, capsys
+):
+    make_old_session(data_dir, "stuck", 15)
+    monkeypatch.setattr(grill_form.shutil, "rmtree", lambda *a, **k: None)
+    assert run(monkeypatch, "list", "--data", str(data_dir)) == 0
+    out, err = capsys.readouterr()
+    assert "stuck" in err
+    assert "削除できません" in err
+    assert "stuck" in out

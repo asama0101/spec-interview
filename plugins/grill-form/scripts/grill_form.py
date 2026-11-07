@@ -127,6 +127,9 @@ def prune_old(root: Path) -> None:
     for d in root.iterdir():
         if d.is_dir() and session_mtime(d) < limit:
             shutil.rmtree(d, ignore_errors=True)
+            if d.exists():
+                # 開いているファイルなどで消せない。一覧は変えず、標準エラーに知らせる
+                print(f"古いセッションを削除できません: {d}", file=sys.stderr)
 
 
 def one_line(text: str) -> str:
