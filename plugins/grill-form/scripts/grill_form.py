@@ -61,7 +61,7 @@ from pathlib import Path
 
 import folder_scan
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 KEEP_DAYS = 14
 MIN_PYTHON = (3, 8)
 # 回答に出る節の順と、見出しの次の行の書き出し（本文を持つ節だけ。空は判定しない）
