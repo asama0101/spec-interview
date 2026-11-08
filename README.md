@@ -101,6 +101,15 @@ python plugins/grill-form/scripts/grill_form.py doctor
 
 ## 使い方
 
+### コマンド
+
+Claude Code で使えるコマンドは、次の 2 つです。
+
+| コマンド | 内容 |
+| --- | --- |
+| `/grill-form:grill-form [テーマ]` | フォームで質問に答えて、SPEC を作ります。未完了のセッションがあれば、再開もできます |
+| `/grill-form:doctor` | 動作に必要なものがそろっているか確認します。何も変更しません |
+
 ### 最初の 1 回
 
 Claude Code で、作業フォルダを開いて、次のように頼みます。
