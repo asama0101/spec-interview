@@ -9,6 +9,7 @@ from pathlib import Path
 MAX_DEPTH = 3  # 作業フォルダを 0、直下を 1 とした、含めるフォルダの深さの上限
 MAX_ENTRIES = 200  # 1 フォルダで拾うフォルダとファイルの合計
 MAX_TOTAL = 5000  # 全体の合計（巨大な作業フォルダで固まらないための上限）
+MAX_DIRS = 20000  # 調べるフォルダ数（資料のないフォルダは MAX_TOTAL に入らない）
 EXTS = frozenset({".docx", ".pdf", ".pptx", ".xlsx", ".md", ".txt"})
 SKIP_DIRS = frozenset({".git", "node_modules", "__pycache__"})
 
@@ -36,6 +37,7 @@ def _skip(p: Path) -> bool:
 
 
 def _node(path: Path, depth: int, budget: list[int]) -> dict:
+    # budget = [残りの件数, 残りのフォルダ数]
     node = {
         "name": path.name,
         "path": str(path),
@@ -61,7 +63,7 @@ def _node(path: Path, depth: int, budget: list[int]) -> dict:
             continue
         if is_dir and depth + 1 > MAX_DEPTH:
             continue
-        if kept >= MAX_ENTRIES or budget[0] <= 0:
+        if kept >= MAX_ENTRIES or budget[0] <= 0 or (is_dir and budget[1] <= 0):
             node["truncated"] = True
             break
         kept += 1
@@ -69,6 +71,7 @@ def _node(path: Path, depth: int, budget: list[int]) -> dict:
         if not is_dir:
             node["files"].append(p.name)
             continue
+        budget[1] -= 1
         child = _node(p, depth + 1, budget)
         if child["dirs"] or child["files"] or child["truncated"]:
             node["dirs"].append(child)
@@ -80,4 +83,4 @@ def _node(path: Path, depth: int, budget: list[int]) -> dict:
 
 
 def scan(root: Path) -> dict:
-    return _node(root, 0, [MAX_TOTAL])
+    return _node(root, 0, [MAX_TOTAL, MAX_DIRS])

@@ -289,15 +289,31 @@ def embed(data: dict) -> str:
     )
 
 
+def read_payload(path: str) -> dict:
+    # --input の JSON（オブジェクト）を読む。読めなければ ValueError（理由つき）
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    except OSError as e:
+        raise ValueError(f"{path} を読めません ({e})") from e
+    except ValueError as e:
+        raise ValueError(f"{path} は JSON として読めません ({e})") from e
+    if not isinstance(payload, dict):
+        raise ValueError(f"{path} の JSON は、オブジェクト（{{...}}）にしてください")
+    return payload
+
+
 def cmd_render(args) -> int:
+    if not args.intake and (args.round is None or not args.input):
+        print("--round と --input が必要です（--intake を除く）。", file=sys.stderr)
+        return 2
+    try:
+        payload = read_payload(args.input) if args.input else {}
+    except ValueError as e:
+        print(e, file=sys.stderr)
+        return 2
     d = Path(args.session_dir)
     d.mkdir(parents=True, exist_ok=True)
     if args.intake:
-        payload = (
-            json.loads(Path(args.input).read_text(encoding="utf-8"))
-            if args.input
-            else {}
-        )
         if args.answers:
             state = parse_intake_answers(Path(args.answers).read_text(encoding="utf-8"))
             state.pop("refresh")
@@ -311,10 +327,6 @@ def cmd_render(args) -> int:
         payload.setdefault("title", "入力（依頼文・参考資料）")
         out = d / "intake.html"
     else:
-        if args.round is None or not args.input:
-            print("--round と --input が必要です（--intake を除く）。", file=sys.stderr)
-            return 2
-        payload = json.loads(Path(args.input).read_text(encoding="utf-8"))
         payload["round"] = args.round
         payload["mode"] = "final" if args.final else "round"
         if not payload.get("title"):
@@ -335,17 +347,24 @@ def cmd_render(args) -> int:
 
 def cmd_cleanup(args) -> int:
     d = Path(args.session_dir).resolve()
-    # セッション以外（プロジェクト内など）は消さない
-    if os.path.normcase(str(d.parent)) != os.path.normcase(
-        str(sessions_root(args.data))
+    # セッション以外（プロジェクト内など）は消さない。
+    # init が必ず作る session.json で、本物のセッションだけを対象にする
+    if (
+        os.path.normcase(str(d.parent))
+        != os.path.normcase(str(sessions_root(args.data)))
+        or not (d / "session.json").is_file()
     ):
         print(
             f"{d} はセッションではないため何もしません。",
             file=sys.stderr,
         )
         return 1
-    if not Path(args.spec).is_file():
-        print("SPEC がないため何もしません（承認前は削除しません）。", file=sys.stderr)
+    spec = Path(args.spec)
+    if not spec.is_file() or spec.stat().st_size == 0:
+        print(
+            "SPEC がない、または空のため何もしません（承認前は削除しません）。",
+            file=sys.stderr,
+        )
         return 1
     if not d.is_dir():
         print("削除対象はありません。")

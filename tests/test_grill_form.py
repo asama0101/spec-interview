@@ -3,6 +3,8 @@
 import datetime
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
 import time
@@ -14,6 +16,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "plugins" / "grill-form" / "scripts"))
 
 import grill_form  # noqa: E402
+
+NODE = shutil.which("node")
 
 TODAY = datetime.date(2026, 10, 24)
 
@@ -204,8 +208,30 @@ def test_cleanupは_dataのsessions直下だけを消す(data_dir, workdir, monk
         assert cleanup(monkeypatch, data_dir, target, spec, "--yes") == 1
         assert target.is_dir()
     direct = sessions / "x"
+    (direct / "session.json").write_text("{}", encoding="utf-8")
     assert cleanup(monkeypatch, data_dir, direct, spec, "--yes") == 0
     assert not direct.exists()
+
+
+def test_cleanupはsession_jsonがないフォルダを消さない(
+    data_dir, workdir, monkeypatch, capsys
+):
+    # 名前が sessions/<x> に合うだけの、無関係なフォルダ
+    spec = workdir / "SPEC-demo.md"
+    spec.write_text("x", encoding="utf-8")
+    other = data_dir / "sessions" / "app"
+    other.mkdir(parents=True)
+    assert cleanup(monkeypatch, data_dir, other, spec, "--yes") == 1
+    assert other.is_dir()
+    assert "セッションではない" in capsys.readouterr().err
+
+
+def test_cleanupは空のSPECなら何も消さない(data_dir, workdir, monkeypatch, capsys):
+    d = make_session(data_dir, monkeypatch, capsys)
+    spec = workdir / "SPEC-demo.md"
+    spec.write_text("", encoding="utf-8")
+    assert cleanup(monkeypatch, data_dir, d, spec, "--yes") == 1
+    assert d.is_dir()
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows のパス規則")
@@ -914,3 +940,86 @@ def test_listは古いセッションを削除できないとき標準エラー�
     assert "stuck" in err
     assert "削除できません" in err
     assert "stuck" in out
+
+
+@pytest.mark.parametrize("text", ["{壊れた", "[1, 2]", ""])
+@pytest.mark.parametrize("extra", [["--round", "1"], ["--intake"]])
+def test_renderは壊れた入力JSONを短いエラーと終了コード2で返す(
+    workdir, tmp_path, monkeypatch, capsys, text, extra
+):
+    src = tmp_path / "bad.json"
+    src.write_text(text, encoding="utf-8")
+    code = run(
+        monkeypatch,
+        "render",
+        "--session-dir",
+        str(tmp_path / "s"),
+        "--input",
+        str(src),
+        *extra,
+    )
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "JSON" in err
+    assert "Traceback" not in err
+
+
+def test_renderは入力JSONがなければ短いエラーと終了コード2で返す(
+    workdir, tmp_path, monkeypatch, capsys
+):
+    code = run(
+        monkeypatch,
+        "render",
+        "--session-dir",
+        str(tmp_path / "s"),
+        "--round",
+        "1",
+        "--input",
+        str(tmp_path / "none.json"),
+    )
+    assert code == 2
+    assert "読めません" in capsys.readouterr().err
+
+
+REQ_FILE = "C:\\work\\依頼書.docx"
+PATHS = ["C:\\work\\a.pdf", "D:\\外\\b.xlsx"]
+
+
+def js_intake_markdown(item: dict, refresh: bool) -> str:
+    # テンプレートの intakeMarkdown を取り出し、node で実行して回答 Markdown を得る
+    src = grill_form.TEMPLATE.read_text(encoding="utf-8")
+    m = re.search(r"  function intakeMarkdown\(.*?\n  }\n", src, re.DOTALL)
+    assert m, "テンプレートに intakeMarkdown がない"
+    script = (
+        "var data = {session: 's'};\n"
+        + m.group(0)
+        + "var a = JSON.parse(require('fs').readFileSync(0, 'utf8'));\n"
+        + "process.stdout.write(intakeMarkdown(a.it, a.refresh));\n"
+    )
+    r = subprocess.run(
+        [NODE, "-e", script],
+        input=json.dumps({"it": item, "refresh": refresh}, ensure_ascii=False),
+        capture_output=True,
+        check=True,
+        encoding="utf-8",
+    )
+    return r.stdout
+
+
+@pytest.mark.skipif(NODE is None, reason="node がない環境では JS を実行できない")
+@pytest.mark.parametrize("refresh", [False, True])
+def test_JSが作る入力フォームの回答をparse_intake_answersが読み戻せる(refresh):
+    # 依頼文の本文に、節の見出しと同じ行を含める（読み戻しがずれやすい形）。
+    # 本文が見出しと種別の行まで丸ごと含む場合は、読み分けられない（対象外）
+    item = {
+        "kind": "text",
+        "request": "計画を詰めたい\n## 参考資料\n- ここは本文\n## 更新\n本文の見出し",
+        "requestFile": REQ_FILE,
+        "paths": PATHS,
+    }
+    got = grill_form.parse_intake_answers(js_intake_markdown(item, refresh))
+    assert got["refresh"] is refresh
+    assert got["kind"] == "text"
+    assert got["request"] == item["request"]
+    assert got["paths"] == item["paths"]
+    assert got["request_file"] == (REQ_FILE if refresh else "")

@@ -132,3 +132,17 @@ def test_scanは対象のファイルがないフォルダを出さず上限も�
     tree = folder_scan.scan(root)
     assert [d["name"] for d in tree["dirs"]] == ["z"]
     assert tree["truncated"] is False
+
+
+def test_scanは資料のないフォルダが多くても調べるフォルダ数に上限を持つ(
+    root, monkeypatch
+):
+    monkeypatch.setattr(folder_scan, "MAX_DIRS", 10)
+    for i in range(30):
+        (root / f"e{i:02}").mkdir()
+    calls = []
+    real = os.scandir
+    monkeypatch.setattr(os, "scandir", lambda p: calls.append(p) or real(p))
+    tree = folder_scan.scan(root)
+    assert len(calls) == 1 + 10  # 作業フォルダ自身と、上限の 10 フォルダ
+    assert tree["truncated"] is True
