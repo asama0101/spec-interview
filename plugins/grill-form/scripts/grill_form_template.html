@@ -32,16 +32,6 @@ aside h2 { font-size: 13px; font-weight: 700; margin: 0 0 8px; color: var(--mute
 .steps li.done::before { background: var(--muted); border-color: var(--muted); }
 .steps li.cur { color: var(--text); font-weight: 700; }
 .steps li.cur::before { border-color: var(--sel); background: var(--sel); box-shadow: 0 0 0 3px var(--sel-weak); }
-.rail { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
-.rail .phase, .rail .count { font-size: 12.5px; color: var(--muted); margin: 0 8px 0 0; }
-.rail .count { margin: 0 0 0 auto; }
-.rail a { display: flex; gap: 4px; padding: 4px 8px; font: 700 12.5px/1.4 var(--mono); color: var(--muted); text-decoration: none;
-  border: 1px solid var(--line); border-radius: 6px; background: var(--panel); cursor: pointer; }
-.rail a:hover { border-color: var(--sel); }
-.rail a:focus-visible { outline: 2px solid var(--sel); outline-offset: 1px; }
-.rail a.cur { background: var(--text); color: var(--panel); border-color: var(--text); }
-.rail .st.ok { color: var(--rec); } .rail .st.ask { color: var(--warn); } .rail .st.hold { color: var(--warn); }
-.rail a.cur .st { color: var(--panel); }
 body.round .shell { grid-template-columns: 1fr; max-width: 860px; }
 body.round aside { display: none; }
 /* 質問カードは両側にはみ出すので、固定ヘッダーの背景を左右の端まで広げる */
@@ -107,7 +97,7 @@ details.long > summary { cursor: pointer; color: var(--sel); font-size: 13px; ma
 .extra { display: none; max-width: 700px; margin-top: 4px; }
 .extra.open { display: block; }
 label.field, .fl { display: block; font-size: 12.5px; color: var(--muted); margin: 14px 0 4px; }
-textarea, input[type=text] { display: block; width: 100%; max-width: 700px; padding: 8px 10px; font: inherit; font-size: 14px; color: var(--text);
+textarea { display: block; width: 100%; max-width: 700px; padding: 8px 10px; font: inherit; font-size: 14px; color: var(--text);
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px; resize: vertical; }
 textarea { min-height: 56px; }
 textarea:focus-visible, input:focus-visible, button:focus-visible { outline: 2px solid var(--sel); outline-offset: 1px; }
@@ -130,28 +120,6 @@ button.clear { font-size: 12.5px; padding: 1px 10px; color: var(--muted); }
 #status.ok { color: var(--rec); font-weight: 700; }
 @media (max-width: 760px) { .shell { grid-template-columns: 1fr; } aside { display: none; } .q { margin-left: -8px; margin-right: -8px; padding: 16px 12px; } }
 @media (prefers-reduced-motion: reduce) { .q { transition: none; } }
-.in-refresh { display: flex; gap: 12px; align-items: center; padding-top: 12px; padding-bottom: 12px; }
-.in-refresh .note { margin: 0; }
-.in-box { margin-top: 12px; }
-.in-box > .note { margin: 0 0 6px; }
-.in-pick { display: grid; grid-template-columns: 240px 1fr; border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
-  min-height: 200px; margin: 8px 0; max-width: 100%; }
-.in-tree { border-right: 1px solid var(--line); padding: 6px; background: var(--bg); font-size: 14px; overflow: auto; max-height: 260px; }
-.in-node { display: flex; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
-.in-node:hover { background: var(--sel-weak); }
-.in-node.cur { background: var(--sel); color: var(--panel); font-weight: 700; }
-.in-tw { display: inline-block; width: 12px; color: var(--muted); font-size: 10px; }
-.in-node.cur .in-tw { color: var(--panel); }
-.in-node input { margin: 0; }
-.in-files { padding: 8px 12px; overflow: auto; max-height: 260px; }
-.in-where { font: 12px var(--mono); color: var(--muted); margin-bottom: 6px; word-break: break-all; }
-.in-file { display: flex; gap: 8px; align-items: center; padding: 4px 0; font-size: 14px; cursor: pointer; user-select: none; }
-.in-chosen { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 13.5px; margin-top: 8px; max-width: 700px; }
-.in-chosen b { font-size: 12px; color: var(--muted); }
-.in-it { display: flex; gap: 10px; align-items: center; padding: 3px 0; border-top: 1px solid var(--line-weak); }
-.in-p { font: 12.5px var(--mono); flex: 1; word-break: break-all; }
-.in-tag { font: 700 11px var(--mono); padding: 2px 6px; border-radius: 5px; border: 1px solid var(--line); color: var(--muted); }
-.note.warn { color: var(--warn); }
 </style>
 </head>
 <body>
@@ -166,7 +134,6 @@ button.clear { font-size: 12.5px; padding: 1px 10px; color: var(--muted); }
     <div class="bar">
       <button class="primary" id="submit">送信</button>
       <button id="copy">Markdown をコピー</button>
-      <button id="abort">中止</button>
       <span id="status"></span>
     </div>
   </main>
@@ -296,7 +263,6 @@ button.clear { font-size: 12.5px; padding: 1px 10px; color: var(--muted); }
   function setActive(card) {
     cards.forEach(function (c) { c.el.classList.toggle('active', c === card); });
     active = card;
-    syncSide();
   }
   function scrollTo(card) {
     card.el.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
@@ -377,7 +343,6 @@ button.clear { font-size: 12.5px; padding: 1px 10px; color: var(--muted); }
       held = !held;
       bHold.setAttribute('aria-pressed', held ? 'true' : 'false');
       card.classList.toggle('hold', held);
-      syncSide();
     });
     more.appendChild(bNote);
     more.appendChild(bAsk);
@@ -388,7 +353,6 @@ button.clear { font-size: 12.5px; padding: 1px 10px; color: var(--muted); }
       clear.type = 'button';
       clear.addEventListener('click', function () {
         inputs.forEach(function (i) { i.checked = false; });
-        syncSide();
       });
       more.appendChild(clear);
     }
@@ -416,9 +380,7 @@ button.clear { font-size: 12.5px; padding: 1px 10px; color: var(--muted); }
       // 矢印キーで動かしただけでは移らない。マウスで選んだときだけ移る
       if (e.target.type === 'radio' && byMouse) advance(entry);
       byMouse = false;
-      syncSide();
     });
-    card.addEventListener('input', syncSide);
   }
 
   function oneLine(s) { return s.replace(/\r?\n/g, ' / '); }
@@ -466,280 +428,26 @@ button.clear { font-size: 12.5px; padding: 1px 10px; color: var(--muted); }
     };
   }
 
-  // 入力フォーム: 依頼文・参考資料
+  // 入力フォーム: 依頼文
   var intakeGet = null;
-  function intakeMarkdown(it, refresh) {
-    var md = '---\nsession: ' + data.session + '\nintake: 1\n---\n';
-    if (refresh) md += '## 更新\n- 読み直し: はい\n\n';
-    md += '## 依頼文\n- 種別: ' + (it.kind === 'file' ? 'ファイル' : 'テキスト') + '\n' +
-      (it.kind === 'file' ? it.requestFile : it.request) + '\n\n';
-    if (refresh) {
-      // 選ばれていない側の入力も退避する（作り直しで消えないように）
-      var other = it.kind === 'file' ? it.request : it.requestFile;
-      if (other) {
-        md += '## 保留の依頼文\n- 種別: ' + (it.kind === 'file' ? 'テキスト' : 'ファイル') + '\n' + other + '\n\n';
-      }
-    }
-    md += '## 参考資料\n';
-    it.paths.forEach(function (p) { md += '- ' + p + '\n'; });
-    return md;
+  function intakeMarkdown(it) {
+    return '---\nsession: ' + data.session + '\nintake: 1\n---\n## 依頼文\n' + it.request + '\n';
+  }
+  function intakeError(it) {
+    return it.request.trim() ? '' : '依頼文を入力してください。';
   }
 
   function renderIntake() {
     if (data.intro) content.appendChild(card_md('intro', data.intro));
-    var root = data.tree;
-    var sep = root.path.indexOf('\\') >= 0 ? '\\' : '/';
-    function withSep(d) { return d.charAt(d.length - 1) === sep ? d : d + sep; }
-    var open = {};
-    open[root.path] = true;
-    var nodes = {};      // フォルダのパス → ノード
-    var fileSet = {};    // 一覧にあるファイルのフルパス
-    (function index(n) {
-      nodes[n.path] = n;
-      n.files.forEach(function (f) { fileSet[withSep(n.path) + f] = true; });
-      n.dirs.forEach(index);
-    })(root);
-    function expandTo(p) {
-      Object.keys(nodes).forEach(function (d) {
-        if (p.indexOf(withSep(d)) === 0) open[d] = true;
-      });
-    }
-    function dirOf(p) { var d = p.slice(0, p.lastIndexOf(sep)); return nodes[d] ? d : withSep(d); }
-
-    var ok = { docx: 1, pdf: 1, pptx: 1, xlsx: 1, md: 1, txt: 1 };
-    function shown(n) {
-      return n.files.filter(function (f) { return ok[f.split('.').pop().toLowerCase()]; });
-    }
-
-    // 状態（読み直しのときは、返した回答から復元する）
-    var kind = data.kind === 'file' ? 'file' : 'text';
-    var reqSel = { cur: root.path, file: '' };
-    var inSel = { cur: root.path, picked: [], last: null };
-    var extraReq = '';
-    var extraPaths = [];
-    if (data.request_file) {
-      if (fileSet[data.request_file]) { reqSel.file = data.request_file; reqSel.cur = dirOf(data.request_file); }
-      else extraReq = data.request_file;
-    }
-    (data.paths || []).forEach(function (p) {
-      if (fileSet[p]) { inSel.picked.push(p); inSel.cur = dirOf(p); }
-      else extraPaths.push(p);
-    });
-    [reqSel.file].concat(inSel.picked).forEach(function (p) { if (p) expandTo(p); });
-
-    // 依頼文
-    var rcard = el('section', 'q');
-    rcard.appendChild(el('h2', '', '依頼文'));
-    rcard.appendChild(el('p', 'note', 'テキストを書くか、ファイルを選ぶか、どちらかで渡します。'));
-    var seg = el('div', 'seg in-kind');
-    [['text', 'テキスト'], ['file', 'ファイル']].forEach(function (k) {
-      var l = el('label');
-      var r = document.createElement('input');
-      r.type = 'radio'; r.name = 'kind'; r.value = k[0];
-      r.checked = kind === k[0];
-      r.addEventListener('change', function () { kind = k[0]; syncKind(); });
-      l.appendChild(r);
-      l.appendChild(document.createTextNode(k[1]));
-      seg.appendChild(l);
-    });
-    rcard.appendChild(seg);
-    var textBox = el('div', 'in-box');
+    var card = el('section', 'q');
+    card.appendChild(el('h2', '', '依頼文'));
+    card.appendChild(el('p', 'note', '何を詰めたいか、背景、分かっている制約を書きます。参考にしたい資料があれば、パスを本文に書いてください。'));
     var req = document.createElement('textarea');
-    req.style.minHeight = '120px';
-    req.placeholder = '何を詰めたいか、背景、分かっている制約など';
+    req.style.minHeight = '160px';
     req.value = data.request || '';
-    textBox.appendChild(req);
-    rcard.appendChild(textBox);
-    var fileBox = el('div', 'in-box');
-    fileBox.appendChild(el('p', 'note', '依頼文のファイル（作業フォルダの中から 1 つ）'));
-    var reqPick = el('div', 'in-pick');
-    var reqTree = el('div', 'in-tree');
-    var reqFiles = el('div', 'in-files');
-    reqPick.appendChild(reqTree);
-    reqPick.appendChild(reqFiles);
-    fileBox.appendChild(reqPick);
-    var reqPath = document.createElement('input');
-    reqPath.type = 'text';
-    reqPath.placeholder = '作業フォルダの外のファイルは、パスをここに書く（書くと上の選択より優先）';
-    reqPath.value = extraReq;
-    fileBox.appendChild(reqPath);
-    var reqSum = el('p', 'note');
-    fileBox.appendChild(reqSum);
-    rcard.appendChild(fileBox);
-    content.appendChild(rcard);
-
-    // 参考資料
-    var icard = el('section', 'q');
-    icard.appendChild(el('h2', '', '参考資料'));
-    icard.appendChild(el('p', 'note',
-      '左のフォルダをクリックすると、右に資料（docx・pdf・pptx・xlsx・md・txt）が出ます。別のフォルダへ移っても、チェックは残ります。' +
-      'Shift を押しながらクリックすると、前にクリックしたファイルから範囲でまとめて選べます。'));
-    var inPick = el('div', 'in-pick');
-    var inTree = el('div', 'in-tree');
-    var inFiles = el('div', 'in-files');
-    inPick.appendChild(inTree);
-    inPick.appendChild(inFiles);
-    icard.appendChild(inPick);
-    var paths = document.createElement('textarea');
-    paths.placeholder = '作業フォルダの外のファイルやフォルダは、パスをここに書く（1 行 1 つ）';
-    paths.value = extraPaths.join('\n');
-    icard.appendChild(paths);
-    var chosen = el('div', 'in-chosen');
-    icard.appendChild(chosen);
-    content.appendChild(icard);
-
-    // フォルダの読み直し
-    var rf = el('section', 'q in-refresh');
-    var rfBtn = el('button', '', 'フォルダを読み直す');
-    rf.appendChild(rfBtn);
-    rf.appendChild(el('span', 'note', '作業フォルダにファイルを足したら押してください。入力した内容とチェックは、そのまま残ります。'));
-    content.insertBefore(rf, rcard);
-
-    function lines(s) {
-      return s.split(/\r?\n/).map(function (l) { return l.trim().replace(/^"(.*)"$/, '$1'); }).filter(Boolean);
-    }
-
-    // ツリー
-    function drawTree(box, tag, getCur, setCur) {
-      var scroll = box.scrollTop;
-      box.textContent = '';
-      (function walk(n, depth) {
-        var row = el('div', 'in-node' + (getCur() === n.path ? ' cur' : ''));
-        row.tabIndex = 0;
-        row.dataset.fk = 'n:' + tag + ':' + n.path;
-        row.style.paddingLeft = (6 + depth * 14) + 'px';
-        var has = n.dirs.length > 0;
-        row.appendChild(el('span', 'in-tw', has ? (open[n.path] ? '▼' : '▶') : ''));
-        row.appendChild(document.createTextNode(depth === 0 ? n.name + '（作業フォルダ）' : n.name));
-        var pick = function () {
-          if (has) open[n.path] = !open[n.path];
-          setCur(n.path);
-          draw();
-        };
-        row.addEventListener('click', pick);
-        row.addEventListener('keydown', function (e) {
-          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); }
-        });
-        box.appendChild(row);
-        if (n.truncated) {
-          var tn = el('div', 'note warn', '件数が多いため一部だけ表示しています。パス欄を使ってください。');
-          tn.style.paddingLeft = (6 + (depth + 1) * 14) + 'px';
-          box.appendChild(tn);
-        }
-        if (has && open[n.path]) n.dirs.forEach(function (c) { walk(c, depth + 1); });
-      })(root, 0);
-      box.scrollTop = scroll;
-    }
-
-    function drawFiles(box, tag, cur, multi) {
-      var n = nodes[cur];
-      var scroll = box.scrollTop;
-      box.textContent = '';
-      box.appendChild(el('div', 'in-where', n.path));
-      var fs = shown(n);
-      if (!fs.length) box.appendChild(el('div', 'note', 'このフォルダに、読める資料はありません。'));
-      if (n.truncated) box.appendChild(el('div', 'note warn', '件数が多いため一部だけ表示しています。パス欄を使ってください。'));
-      fs.forEach(function (f, idx) {
-        var full = withSep(n.path) + f;
-        var l = el('label', 'in-file');
-        var c = document.createElement('input');
-        c.type = multi ? 'checkbox' : 'radio';
-        if (!multi) c.name = 'reqfile';
-        c.checked = multi ? inSel.picked.indexOf(full) >= 0 : reqSel.file === full;
-        c.dataset.fk = 'f:' + tag + ':' + full;
-        l.appendChild(c);
-        l.appendChild(document.createTextNode(f));
-        // クリックはラベルで受ける（名前のクリックだと、ブラウザが転送するクリックから Shift が落ちるため）
-        l.addEventListener('click', function (e) {
-          e.preventDefault();
-          if (!multi) {
-            reqSel.file = reqSel.file === full ? '' : full;
-            draw();
-            return;
-          }
-          var on = inSel.picked.indexOf(full) < 0;
-          var from = idx;
-          var to = idx;
-          if (e.shiftKey && inSel.last && inSel.last.dir === n.path) {
-            from = Math.min(inSel.last.i, idx);
-            to = Math.max(inSel.last.i, idx);
-          }
-          for (var k = from; k <= to; k++) {
-            var q = withSep(n.path) + fs[k];
-            var at = inSel.picked.indexOf(q);
-            if (on && at < 0) inSel.picked.push(q);
-            if (!on && at >= 0) inSel.picked.splice(at, 1);
-          }
-          inSel.last = { dir: n.path, i: idx };
-          draw();
-        });
-        box.appendChild(l);
-      });
-      box.scrollTop = scroll;
-    }
-
-    function drawChosen() {
-      var all = inSel.picked.concat(lines(paths.value));
-      chosen.textContent = '';
-      chosen.appendChild(el('b', '', all.length ? '選択中（' + all.length + ' 件）' : '選択中'));
-      if (!all.length) chosen.appendChild(document.createTextNode(' なし'));
-      all.forEach(function (p) {
-        var row = el('div', 'in-it');
-        row.appendChild(el('span', 'in-p', p));
-        if (inSel.picked.indexOf(p) >= 0) {
-          var b = el('button', 'clear', '外す');
-          b.addEventListener('click', function () {
-            inSel.picked.splice(inSel.picked.indexOf(p), 1);
-            draw();
-          });
-          row.appendChild(b);
-        } else {
-          row.appendChild(el('span', 'in-tag', 'パス欄'));
-        }
-        chosen.appendChild(row);
-      });
-    }
-
-    function current() {
-      return {
-        kind: kind,
-        request: req.value.trim(),
-        requestFile: lines(reqPath.value)[0] || reqSel.file,
-        paths: inSel.picked.concat(lines(paths.value))
-      };
-    }
-    function syncKind() {
-      textBox.style.display = kind === 'text' ? '' : 'none';
-      fileBox.style.display = kind === 'file' ? '' : 'none';
-    }
-    function draw() {
-      var ae = document.activeElement;
-      var fk = ae && ae.dataset ? ae.dataset.fk : '';
-      drawTree(reqTree, 'req', function () { return reqSel.cur; }, function (p) { reqSel.cur = p; });
-      drawFiles(reqFiles, 'req', reqSel.cur, false);
-      drawTree(inTree, 'in', function () { return inSel.cur; }, function (p) { inSel.cur = p; });
-      drawFiles(inFiles, 'in', inSel.cur, true);
-      drawChosen();
-      var it = current();
-      reqSum.textContent = '依頼文のファイル: ' + (it.requestFile || 'なし');
-      if (fk) {
-        var again = content.querySelector('[data-fk="' + fk.replace(/(["\\])/g, '\\$1') + '"]');
-        if (again) again.focus();
-      }
-    }
-    paths.addEventListener('input', drawChosen);
-    reqPath.addEventListener('input', draw);
-    rfBtn.addEventListener('click', function () {
-      window.__answersMd = intakeMarkdown(current(), true);
-      window.__submitted = true;
-      document.getElementById('submit').disabled = true;
-      rfBtn.disabled = true;
-      setStatus('読み直しを依頼しました。Claude が作り直して、開き直します。このページでは、もう送信できません。', 'ok');
-    });
-    syncKind();
-    draw();
-
-    intakeGet = current;
+    card.appendChild(req);
+    content.appendChild(card);
+    intakeGet = function () { return { request: req.value.trim() }; };
   }
 
   if (data.mode === 'intake') {
@@ -751,32 +459,11 @@ button.clear { font-size: 12.5px; padding: 1px 10px; color: var(--muted); }
     (data.questions || []).forEach(renderQuestion);
   }
 
-  // 進み具合: 質問画面では上の一覧（質問ごとの回答状況）、ほかの画面では左の一覧
-  var STATE_MARK = { '回答': ['●', 'ok'], '保留': ['△', 'hold'], '要確認': ['?', 'ask'], '未回答': ['○', ''] };
-  var idxLinks = [];
-  var countEl = null;
+  // 進み具合: 入力フォームと最終確認の画面の左の一覧（質問画面には出さない）
   function buildSide() {
-    var steps = ['入力', '事前確認', '質問', '最終確認'];
-    if (data.mode === 'round') {
-      var rail = el('div', 'rail');
-      rail.appendChild(el('span', 'phase', data.round > 0 ? '質問 第 ' + data.round + ' ラウンド' : steps[1]));
-      cards.forEach(function (c) {
-        var a = el('a');
-        a.href = '#' + c.el.id;
-        a.title = c.q.title;
-        a.appendChild(el('span', '', c.q.id));
-        var st = el('span', 'st', '○');
-        a.appendChild(st);
-        a.addEventListener('click', function (e) { e.preventDefault(); setActive(c); scrollTo(c); });
-        rail.appendChild(a);
-        idxLinks.push({ a: a, st: st, card: c });
-      });
-      countEl = el('p', 'count');
-      rail.appendChild(countEl);
-      document.querySelector('header.top').appendChild(rail);
-      return;
-    }
-    var curIdx = data.mode === 'intake' ? 0 : 3;
+    if (data.mode === 'round') return;
+    var steps = ['入力', '質問', '最終確認'];
+    var curIdx = data.mode === 'intake' ? 0 : 2;
     var side = document.getElementById('side');
     side.appendChild(el('h2', '', '進み具合'));
     var ol = el('ol', 'steps');
@@ -787,18 +474,6 @@ button.clear { font-size: 12.5px; padding: 1px 10px; color: var(--muted); }
     });
     side.appendChild(ol);
   }
-  function syncSide() {
-    var n = 0;
-    idxLinks.forEach(function (l) {
-      var state = l.card.read().state;
-      var mark = STATE_MARK[state];
-      l.st.textContent = mark[0];
-      l.st.className = 'st ' + mark[1];
-      l.a.classList.toggle('cur', l.card === active);
-      if (state === '回答') n++;
-    });
-    if (countEl) countEl.textContent = '回答 ' + n + ' / ' + cards.length;
-  }
   buildSide();
   if (data.mode === 'round' && cards.length) setActive(cards[0]);
 
@@ -808,11 +483,9 @@ button.clear { font-size: 12.5px; padding: 1px 10px; color: var(--muted); }
       (data.mode === 'intake' ? 'intake: 1' : (data.mode === 'final' ? 'final: ' : 'round: ') + data.round) + '\n---\n';
     if (data.mode === 'intake') {
       var it = intakeGet();
-      var hasReq = it.kind === 'file' ? !!it.requestFile : !!it.request;
-      if (!hasReq && !it.paths.length) {
-        return { error: '依頼文か参考資料のどちらかを入力してください。' };
-      }
-      return { md: intakeMarkdown(it, false) };
+      var err = intakeError(it);
+      if (err) return { error: err };
+      return { md: intakeMarkdown(it) };
     }
     if (data.mode === 'final') {
       var a = approveGet();
@@ -846,22 +519,6 @@ button.clear { font-size: 12.5px; padding: 1px 10px; color: var(--muted); }
     window.__answersMd = r.md;
     window.__submitted = true;
     setStatus('送信しました。Claude が自動で受け取ります。', 'ok');
-  });
-
-  // 中止: 2回目の押下で確定する（alert/confirm はブラウザ操作が止まるので使わない）
-  var abortArmed = false;
-  document.getElementById('abort').addEventListener('click', function () {
-    if (!abortArmed) {
-      abortArmed = true;
-      setStatus('grilling を中止します。よければ、もう一度「中止」を押してください。', 'warn');
-      return;
-    }
-    var head = '---\nsession: ' + data.session + '\n' +
-      (data.mode === 'intake' ? 'intake: 1' : (data.mode === 'final' ? 'final: ' : 'round: ') + data.round) + '\n---\n';
-    window.__answersMd = head + '## 中止\n- 判定: 中止\n';
-    window.__aborted = true;
-    window.__submitted = true;
-    setStatus('中止しました。Claude が自動で受け取ります。', 'ok');
   });
 
   document.getElementById('copy').addEventListener('click', function () {

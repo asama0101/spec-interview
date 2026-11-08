@@ -1,14 +1,9 @@
 """grill-form スキル用のスクリプト。
 
 サブコマンド:
-  init   --theme T --data D   セッションフォルダ（D/sessions/ 配下）を作り、
+  init   --theme T            OS の一時フォルダに作業用フォルダを作り、
                               そのパスを1行で出力する
-                              （HTML・回答・質問 JSON を置く）。
-                              session.json にテーマと作成日時を書く
-  list   --data D             セッション（D/sessions/ 配下）を、更新の新しい順に
-                              フォルダ名・テーマ・更新日時・最新のファイル名を
-                              タブ区切りで1行ずつ出力する。
-                              14 日より古いセッションは先に削除する
+                              （HTML・回答・質問 JSON を置く。掃除は OS に任せる）
   spec-path --theme T         SPEC の保存先
                               <作業フォルダ>/docs/grill-form/specs/<日付>-<テーマ>-design.md
                               を決め、フォルダを作って、パスを出力する
@@ -20,21 +15,13 @@
                               --final のときは N を最終確認の版番号とし、
                               final-N.html を生成する
                               （修正のたびに版を上げ、前の版を上書きしない）
-  render --session-dir D --intake [--input J.json] [--answers A.md]
-                              入力フォーム intake.html を生成する。作業フォルダ
-                              （カレントフォルダ）の一覧を調べて埋め込む。
+  render --session-dir D --intake [--input J.json]
+                              入力フォーム intake.html（依頼文の欄だけ）を生成する。
                               J.json は {"title","intro","request"} で省略可
-                              （request は依頼文欄の初期入力）。
-                              A.md は入力フォームの回答で、
-                              あれば依頼文・参考資料をそこから復元する
-                              （「フォルダを読み直す」の作り直し用。J.json より優先）
+                              （request は依頼文欄の初期入力）
   doctor                      動作に必要なもの（Python の版、claude、Playwright MCP）を
                               確認する。何も変更しない。足りないときは不足を表示し、
                               終了コード 1 で終わる
-  cleanup --data D --session-dir S --spec P [--yes]
-                              セッション S（D/sessions/ 直下）を削除対象として表示する。
-                              --yes を付けたときだけ S を削除する。
-                              SPEC（P）がなければ何もしない（承認前は消さない）
 
 質問 JSON:
   {"title": "...", "intro": "...", "questions": [
@@ -50,135 +37,17 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
-import os
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
-import time
 from pathlib import Path
 
-import folder_scan
-
 __version__ = "1.2.2"
-KEEP_DAYS = 14
 MIN_PYTHON = (3, 8)
-# 回答に出る節の順と、見出しの次の行の書き出し（本文を持つ節だけ。空は判定しない）
-INTAKE_SECTIONS = {
-    "更新": "- 読み直し:",
-    "依頼文": "- 種別:",
-    "保留の依頼文": "- 種別:",
-    "参考資料": "",
-}
 TEMPLATE = Path(__file__).with_name("grill_form_template.html")
 INVALID = re.compile(r'[\\/:*?"<>|\s]+')
-
-
-def data_dir(value: str) -> Path:
-    # argparse の type=。置き場（--data）は空文字を受け付けない
-    if not value:
-        raise argparse.ArgumentTypeError("空のパスは指定できません")
-    return Path(value).resolve()
-
-
-def sessions_root(data: Path) -> Path:
-    return data / "sessions"
-
-
-def newest_file(d: Path) -> Path | None:
-    # d 直下（再帰なし）で最も新しいファイル
-    # 消えた・読めないファイルは飛ばす
-    best, best_time = None, -1.0
-    try:
-        files = list(d.iterdir())
-    except OSError:
-        return None
-    for f in files:
-        try:
-            if not f.is_file():
-                continue
-            t = f.stat().st_mtime
-        except OSError:
-            continue
-        if t > best_time:
-            best, best_time = f, t
-    return best
-
-
-def mtime_of(d: Path, newest: Path | None) -> float:
-    # セッションの更新時刻。直下のファイルの最新。なければフォルダ自身。
-    # 読めないときは新しい扱いにする（読めないものを、古いと見て消さない）
-    try:
-        return (newest or d).stat().st_mtime
-    except OSError:
-        return time.time()
-
-
-def session_mtime(d: Path) -> float:
-    return mtime_of(d, newest_file(d))
-
-
-def prunable(d: Path) -> bool:
-    # 掃除してよいのは、session.json のあるセッションと、空のフォルダ。
-    # 空のフォルダは、init が途中で止まった残り。
-    # ほかのファイルがあるフォルダはセッションではないので、消さない
-    if (d / "session.json").is_file():
-        return True
-    try:
-        return next(d.iterdir(), None) is None
-    except OSError:
-        return False
-
-
-def prune_old(root: Path) -> None:
-    # 古いセッションを削除する（中断したセッションの掃除）
-    limit = time.time() - KEEP_DAYS * 86400
-    if not root.is_dir():
-        return
-    for d in root.iterdir():
-        if d.is_dir() and prunable(d) and session_mtime(d) < limit:
-            shutil.rmtree(d, ignore_errors=True)
-            if d.exists():
-                # 開いているファイルなどで消せない。一覧は変えず、標準エラーに知らせる
-                print(f"古いセッションを削除できません: {d}", file=sys.stderr)
-
-
-def one_line(text: str) -> str:
-    return re.sub(r"[\t\r\n]", " ", text)
-
-
-def read_info(d: Path) -> dict:
-    # session.json を読む。なければ・壊れていれば空の辞書
-    try:
-        info = json.loads((d / "session.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    return info if isinstance(info, dict) else {}
-
-
-def belongs_here(info: dict) -> bool:
-    # 別の作業フォルダで始めたセッションは、再開の一覧に出さない。
-    # 作業フォルダを読めないセッションは、安全側で出す
-    cwd = info.get("cwd")
-    if not isinstance(cwd, str):
-        return True
-    return os.path.normcase(str(Path(cwd))) == os.path.normcase(
-        str(Path.cwd().resolve())
-    )
-
-
-def describe_session(
-    d: Path, info: dict, newest: Path | None, mtime: float
-) -> tuple[str, str, str, str]:
-    # (フォルダ名, テーマ, 更新日時, 最新のファイル名)
-    theme = info.get("theme")
-    return (
-        one_line(d.name),
-        one_line(theme if isinstance(theme, str) else "(不明)"),
-        datetime.datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M"),
-        one_line(newest.name) if newest else "(なし)",
-    )
 
 
 def normalize_theme(theme: str) -> str:
@@ -198,40 +67,8 @@ def spec_path(theme: str, today: datetime.date | None = None) -> Path:
 
 
 def cmd_init(args) -> int:
-    stamp = datetime.datetime.now().strftime("%Y-%m-%d_%H%M")
-    root = sessions_root(args.data)
-    root.mkdir(parents=True, exist_ok=True)
-    # 同じテーマを同じ分に呼んでも、別のフォルダにする
-    tmp = tempfile.mkdtemp(prefix=f"{stamp}_{normalize_theme(args.theme)}_", dir=root)
-    info = {
-        "theme": args.theme,
-        "created": datetime.datetime.now().isoformat(),
-        "cwd": str(Path.cwd().resolve()),
-    }
-    (Path(tmp) / "session.json").write_text(
-        json.dumps(info, ensure_ascii=False), encoding="utf-8"
-    )
-    print(tmp)
-    return 0
-
-
-def cmd_list(args) -> int:
-    root = sessions_root(args.data)
-    prune_old(root)
-    if not root.is_dir():
-        return 0
-    found = []
-    for d in root.iterdir():
-        if not d.is_dir():
-            continue
-        info = read_info(d)
-        if not belongs_here(info):
-            continue
-        newest = newest_file(d)
-        mtime = mtime_of(d, newest)
-        found.append((mtime, describe_session(d, info, newest, mtime)))
-    for _, row in sorted(found, key=lambda r: r[0], reverse=True):
-        print("\t".join(row))
+    # 作業ファイルは OS の一時フォルダに置く。掃除は OS に任せる
+    print(tempfile.mkdtemp(prefix=f"grill-form_{normalize_theme(args.theme)}_"))
     return 0
 
 
@@ -244,50 +81,6 @@ def cmd_spec_path(args) -> int:
         return 1
     print(path)
     return 0
-
-
-def parse_intake_answers(md: str) -> dict:
-    # 入力フォームの回答 Markdown を、フォームの状態に戻せる辞書にする
-    state: dict = {
-        "refresh": False,
-        "kind": "text",
-        "request": "",
-        "request_file": "",
-        "paths": [],
-    }
-    lines = md.splitlines()
-    sections: dict[str, list[str]] = {}
-    end = len(lines)
-    # 依頼文の本文に「## 参考資料」などの同じ行があっても読めるよう、節は後ろから探す。
-    # 本文を持つ節（更新・依頼文・保留の依頼文）は、見出しの次の行でも見分ける
-    for name, follow in reversed(INTAKE_SECTIONS.items()):
-        for i in range(end - 1, -1, -1):
-            if (
-                lines[i].startswith("## ")
-                and lines[i][3:].strip() == name
-                and "\n".join(lines[i + 1 : i + 2]).startswith(follow)
-            ):
-                sections[name] = lines[i + 1 : end]
-                end = i
-                break
-    state["refresh"] = "更新" in sections
-    # 「保留の依頼文」は、選ばれていない側（読み直しで消えないよう退避した入力）
-    for key in ("保留の依頼文", "依頼文"):
-        body = sections.get(key, [])
-        if body and body[0].strip() == "- 種別: ファイル":
-            if key == "依頼文":
-                state["kind"] = "file"
-            state["request_file"] = next(
-                (ln.strip().strip('"').strip() for ln in body[1:] if ln.strip()), ""
-            )
-        elif body:
-            state["request"] = "\n".join(body[1:]).strip()
-    state["paths"] = [
-        ln[2:].strip().strip('"').strip()
-        for ln in sections.get("参考資料", [])
-        if ln.startswith("- ") and ln[2:].strip()
-    ]
-    return state
 
 
 def embed(data: dict) -> str:
@@ -327,24 +120,15 @@ def cmd_render(args) -> int:
         return 2
     try:
         payload = read_payload(args.input) if args.input else {}
-        answers = read_text(args.answers) if args.answers else None
     except ValueError as e:
         print(e, file=sys.stderr)
         return 2
     d = Path(args.session_dir)
     d.mkdir(parents=True, exist_ok=True)
     if args.intake:
-        if answers is not None:
-            state = parse_intake_answers(answers)
-            state.pop("refresh")
-            # 空の欄は、--input の初期値を消さない
-            payload.update({k: v for k, v in state.items() if k == "kind" or v})
         payload["mode"] = "intake"
         payload["round"] = 0
-        payload["cwd"] = str(Path.cwd())
-        payload["tree"] = folder_scan.scan(Path.cwd())
-        payload.setdefault("kind", "text")
-        payload.setdefault("title", "入力（依頼文・参考資料）")
+        payload.setdefault("title", "入力（依頼文）")
         out = d / "intake.html"
     else:
         payload["round"] = args.round
@@ -362,43 +146,6 @@ def cmd_render(args) -> int:
     html = TEMPLATE.read_text(encoding="utf-8").replace("__DATA__", embed(payload))
     out.write_text(html, encoding="utf-8")
     print(out)
-    return 0
-
-
-def cmd_cleanup(args) -> int:
-    d = Path(args.session_dir).resolve()
-    # セッション以外（プロジェクト内など）は消さない。
-    # init が必ず作る session.json で、本物のセッションだけを対象にする
-    if (
-        os.path.normcase(str(d.parent))
-        != os.path.normcase(str(sessions_root(args.data)))
-        or not (d / "session.json").is_file()
-    ):
-        print(
-            f"{d} はセッションではないため何もしません。",
-            file=sys.stderr,
-        )
-        return 1
-    spec = Path(args.spec)
-    if not spec.is_file() or spec.stat().st_size == 0:
-        print(
-            "SPEC がない、または空のため何もしません（承認前は削除しません）。",
-            file=sys.stderr,
-        )
-        return 1
-    print(f"削除対象{'' if args.yes else '（--yes で削除）'}: {d}")
-    if args.yes:
-        try:
-            shutil.rmtree(d)
-        except OSError as e:
-            print(
-                f"削除できませんでした: {e}\n"
-                "シェルのカレントフォルダがセッション内にないか確認してください。"
-                "SPEC は保存済みです。",
-                file=sys.stderr,
-            )
-            return 1
-        print("削除しました。SPEC は残っています。")
     return 0
 
 
@@ -457,12 +204,7 @@ def main() -> int:
 
     p = sub.add_parser("init")
     p.add_argument("--theme", required=True)
-    p.add_argument("--data", required=True, type=data_dir)
     p.set_defaults(fn=cmd_init)
-
-    p = sub.add_parser("list")
-    p.add_argument("--data", required=True, type=data_dir)
-    p.set_defaults(fn=cmd_list)
 
     p = sub.add_parser("spec-path")
     p.add_argument("--theme", required=True)
@@ -476,22 +218,10 @@ def main() -> int:
         "--intake", action="store_true", help="入力フォーム intake.html を生成する"
     )
     p.add_argument("--input")
-    p.add_argument(
-        "--answers", help="入力フォームの回答（intake.answers.md）。状態を復元する"
-    )
     p.set_defaults(fn=cmd_render)
 
     p = sub.add_parser("doctor")
     p.set_defaults(fn=cmd_doctor)
-
-    p = sub.add_parser("cleanup")
-    p.add_argument("--data", required=True, type=data_dir)
-    p.add_argument("--session-dir", required=True)
-    p.add_argument(
-        "--spec", required=True, help="承認済み SPEC のパス（spec-path の出力）"
-    )
-    p.add_argument("--yes", action="store_true", help="一覧だけでなく実際に削除する")
-    p.set_defaults(fn=cmd_cleanup)
 
     args = ap.parse_args()
     return args.fn(args)

@@ -92,6 +92,18 @@ def test_配布に必要なファイルがgit管理下にある():
         assert f"plugins/grill-form/{rel}" in out
 
 
+def test_リポジトリにセッションの残骸が入っていない():
+    out = subprocess.run(  # noqa: S603
+        ["git", "ls-files", "*session.json", "sessions/*"],  # noqa: S607
+        cwd=ROOT,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        check=True,
+    ).stdout.split()
+    assert out == []
+
+
 @pytest.mark.skipif(shutil.which("claude") is None, reason="claude CLI がない")
 def test_claude_plugin_validateが通る():
     for target in (PLUGIN, ROOT):
@@ -196,7 +208,7 @@ def test_READMEにscriptsの置き場が書かれている():
     assert "plugins/grill-form/scripts/" in text
 
 
-@pytest.mark.parametrize("sub", ["init", "spec-path", "render", "cleanup", "list"])
+@pytest.mark.parametrize("sub", ["init", "spec-path", "render"])
 def test_allowed_toolsはサブコマンドごとに絞る(text, sub):
     allowed = parse_frontmatter(text)["allowed-tools"]
     assert f'grill_form.py" {sub} *)' in allowed
@@ -232,70 +244,42 @@ def test_READMEにdoctorの呼び出し方がある():
     assert "grill_form.py doctor" in (ROOT / "README.md").read_text(encoding="utf-8")
 
 
-def test_SKILLに起動時のlistと再開の手順がある(text):
-    assert 'grill_form.py" list --data "${CLAUDE_PLUGIN_DATA}"' in text
-    assert "未完了" in text
-    assert "再開" in text
-
-
-@pytest.mark.parametrize(
-    "state",
-    [
-        "intake.html",
-        "round-N.html",
-        "round-N.answers.md",
-        "final-K.html",
-        "final-K.answers.md",
-        "承認",
-        "修正あり",
-        "どれにも当てはまらない",
-    ],
-)
-def test_SKILLの再開の表に全状態がある(text, state):
-    assert state in text
-
-
-@pytest.mark.parametrize("sub", ["init", "cleanup"])
-def test_SKILLのinitとcleanupにdataを渡している(text, sub):
-    lines = [ln for ln in text.splitlines() if f'grill_form.py" {sub}' in ln]
-    body = [ln for ln in lines if not ln.startswith("allowed-tools:")]
-    assert body
-    assert all('--data "${CLAUDE_PLUGIN_DATA}"' in ln for ln in body)
-
-
-@pytest.mark.parametrize("name", ["SKILL", "README", "development"])
-def test_セッションの記述に3日と一時セッションが残っていない(name):
-    path = {
-        "SKILL": SKILL_MD,
-        "README": ROOT / "README.md",
-        "development": ROOT / "docs" / "development.md",
-    }[name]
-    body = path.read_text(encoding="utf-8")
-    assert "3 日" not in body
-    assert "一時セッション" not in body
-
-
-def test_READMEに再開と14日の説明がある():
-    body = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "14 日" in body
-    assert "再開" in body
-
-
 def test_SKILLが質問JSONとfinal_JSONのファイル名を決めている(text):
     assert "`<D>/round-N.json`" in text
     assert "`<D>/final-K.json`" in text
 
 
-def test_SKILLの再開の表は新しい段階から先に一致したものを使う(text):
-    assert "新しい段階" in text
-    assert "最初に一致した行" in text
+@pytest.mark.parametrize(
+    "gone",
+    [
+        "cleanup",
+        "--data",
+        "session.json",
+        "Round 0",
+        "事前確認",
+        "点検1",
+        "点検 1",
+        "status:",
+        "## 中止",
+        "## 更新",
+        "再開",
+    ],
+)
+def test_SKILLに手放した機能の記述がない(text, gone):
+    assert gone not in text
 
 
-def test_SKILLのintake_answersの行は更新があれば手順2に戻る(text):
-    row = next(ln for ln in text.splitlines() if "`intake.answers.md` あり" in ln)
-    assert "## 更新" in row
+def test_SKILLに保留と聞き返しが残る間はSPEC案に進まない旨がある(text):
+    assert "保留・聞き返しが残る間は SPEC 案に進まない" in text
 
 
-def test_SKILLの再開の選択肢は新しい3件までにする(text):
-    assert "新しい 3 件" in text
-    assert "その他" in text
+def test_SKILLの手順の参照が実在する(text):
+    section = text[text.index("## 手順") : text.index("## 回答 Markdown")]
+    steps = {int(n) for n in re.findall(r"^(\d+)\. ", section, re.MULTILINE)}
+    assert steps == set(range(1, 10))
+    refs = set()
+    for first, last in re.findall(r"手順(\d+)(?:〜(\d+))?", text):
+        refs.add(int(first))
+        if last:
+            refs.add(int(last))
+    assert refs <= steps
