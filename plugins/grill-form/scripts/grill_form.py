@@ -366,17 +366,19 @@ def cmd_cleanup(args) -> int:
     return 0
 
 
-def mcp_registered(claude: str) -> bool:
+def mcp_get(claude: str) -> str | None:
+    # 登録されていれば claude mcp get の出力、なければ None
     # claude mcp get は MCP サーバーへ実際に接続するので、待ち続けないよう時間を区切る
     try:
-        return not subprocess.run(  # noqa: S603 固定の引数で claude を呼ぶ
+        r = subprocess.run(  # noqa: S603 固定の引数で claude を呼ぶ
             [claude, "mcp", "get", "playwright"],
             capture_output=True,
             check=False,
             timeout=30,
-        ).returncode
+        )
     except (subprocess.TimeoutExpired, OSError):
-        return False
+        return None
+    return None if r.returncode else r.stdout.decode("utf-8", "replace")
 
 
 def cmd_doctor(args) -> int:
@@ -388,11 +390,19 @@ def cmd_doctor(args) -> int:
         ng.append(
             "claude コマンドが見つかりません（Playwright MCP の確認に使います）。"
         )
-    elif not mcp_registered(claude):
-        ng.append(
-            "Playwright MCP を確認できません。`playwright` の名前で登録されていないか、"
-            "応答がありません（README の導入方法の手順 3）。"
-        )
+    else:
+        mcp = mcp_get(claude)
+        if mcp is None:
+            ng.append(
+                "Playwright MCP を確認できません。"
+                "`playwright` の名前で登録されていないか、"
+                "応答がありません（README の導入方法の手順 3）。"
+            )
+        elif "--allow-unrestricted-file-access" not in mcp:
+            ng.append(
+                "Playwright MCP に --allow-unrestricted-file-access が付いていません。"
+                "`file://` のフォームが開けません（README の困ったとき）。"
+            )
     for msg in ng:
         print(f"NG: {msg}")
     if not ng:

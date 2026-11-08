@@ -203,6 +203,31 @@ def test_allowed_toolsはサブコマンドごとに絞る(text, sub):
     assert 'grill_form.py" *)' not in allowed
 
 
+DOCTOR_MD = PLUGIN / "skills" / "doctor" / "SKILL.md"
+
+
+def test_doctorスキルは名前がディレクトリ名と一致し自動起動しない():
+    fields = parse_frontmatter(DOCTOR_MD.read_text(encoding="utf-8"))
+    assert fields["name"] == DOCTOR_MD.parent.name == "doctor"
+    assert fields["description"]
+    assert fields["disable-model-invocation"] == "true"
+
+
+@pytest.mark.parametrize("py", ["python", "python3"])
+def test_doctorスキルはdoctorだけを許可する(py):
+    allowed = parse_frontmatter(DOCTOR_MD.read_text(encoding="utf-8"))["allowed-tools"]
+    assert (
+        f'Bash({py} "${{CLAUDE_PLUGIN_ROOT}}/scripts/grill_form.py" doctor)' in allowed
+    )
+    assert "*" not in allowed
+
+
+def test_doctorスキルは他の絶対パスを使わず変更しないと書く():
+    body = DOCTOR_MD.read_text(encoding="utf-8")
+    assert "CLAUDE_SKILL_DIR" not in body
+    assert "何も変更しない" in body
+
+
 def test_READMEにdoctorの呼び出し方がある():
     assert "grill_form.py doctor" in (ROOT / "README.md").read_text(encoding="utf-8")
 

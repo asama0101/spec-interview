@@ -620,14 +620,30 @@ def test_空白と日本語を含むパスで実コマンドのinitとrenderとc
 
 
 class _Done:
-    def __init__(self, returncode):
+    def __init__(self, returncode, stdout=b""):
         self.returncode = returncode
+        self.stdout = stdout
 
 
-def _fake_claude(monkeypatch, which="claude", returncode=0):
+_MCP_GET_OK = (
+    b"playwright:\n  Args: @playwright/mcp@latest --allow-unrestricted-file-access\n"
+)
+
+
+def _fake_claude(monkeypatch, which="claude", returncode=0, stdout=_MCP_GET_OK):
     # 外部コマンド（claude）だけを置き換える
     monkeypatch.setattr(grill_form.shutil, "which", lambda name: which)
-    monkeypatch.setattr(grill_form.subprocess, "run", lambda *a, **k: _Done(returncode))
+    monkeypatch.setattr(
+        grill_form.subprocess, "run", lambda *a, **k: _Done(returncode, stdout)
+    )
+
+
+def test_doctorは_file_URLを許可する引数がなければ1で終わる(monkeypatch, capsys):
+    _fake_claude(monkeypatch, stdout=b"playwright:\n  Args: @playwright/mcp@latest\n")
+    assert run(monkeypatch, "doctor") == 1
+    assert "NG: Playwright MCP に --allow-unrestricted-file-access" in (
+        capsys.readouterr().out
+    )
 
 
 def test_doctorは依存がそろっていれば0で終わる(monkeypatch, capsys):

@@ -68,6 +68,12 @@ python plugins/grill-form/scripts/grill_form.py doctor
 
 そろっていれば `OK: 動作に必要なものはそろっています。` と出ます。足りないものがあると `NG: …` と理由を出し、終了コード 1 で終わります。`/plugin` から入れたときのスクリプトの場所は、Claude に確認してもらってください。
 
+Claude Code の中からは、次のコマンドでも確認できます。結果は Claude が日本語で知らせます。
+
+```
+/grill-form:doctor
+```
+
 ## 使い方
 
 Claude Code で、次のように頼みます。
