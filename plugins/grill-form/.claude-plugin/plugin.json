@@ -1,6 +1,6 @@
 {
   "name": "grill-form",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "計画や設計を、ブラウザのフォームで答えながら詰めて、SPEC にまとめる。対象 OS は Windows 11 のみ（macOS・Linux は対象外）。",
   "author": { "name": "grill-form contributors" },
   "license": "MIT",
