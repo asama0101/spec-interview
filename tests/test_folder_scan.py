@@ -146,3 +146,16 @@ def test_scanは資料のないフォルダが多くても調べるフォルダ�
     tree = folder_scan.scan(root)
     assert len(calls) == 1 + 10  # 作業フォルダ自身と、上限の 10 フォルダ
     assert tree["truncated"] is True
+
+
+def test_scanはフォルダ数の上限に達してもファイルは落とさない(root, monkeypatch):
+    monkeypatch.setattr(folder_scan, "MAX_DIRS", 2)
+    for i in range(4):
+        d = root / f"d{i}"
+        d.mkdir()
+        touch(d, "a.md")
+    touch(root, "z1.md", "z2.md")  # 名前順で、フォルダのあとに並ぶ
+    tree = folder_scan.scan(root)
+    assert tree["files"] == ["z1.md", "z2.md"]
+    assert [d["name"] for d in tree["dirs"]] == ["d0", "d1"]
+    assert tree["truncated"] is True

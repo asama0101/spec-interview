@@ -63,9 +63,13 @@ def _node(path: Path, depth: int, budget: list[int]) -> dict:
             continue
         if is_dir and depth + 1 > MAX_DEPTH:
             continue
-        if kept >= MAX_ENTRIES or budget[0] <= 0 or (is_dir and budget[1] <= 0):
+        if kept >= MAX_ENTRIES or budget[0] <= 0:
             node["truncated"] = True
             break
+        if is_dir and budget[1] <= 0:
+            # フォルダだけ飛ばす。あとに続くファイルは落とさない
+            node["truncated"] = True
+            continue
         kept += 1
         budget[0] -= 1
         if not is_dir:

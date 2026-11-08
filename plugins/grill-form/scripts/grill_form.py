@@ -119,13 +119,25 @@ def session_mtime(d: Path) -> float:
     return mtime_of(d, newest_file(d))
 
 
+def prunable(d: Path) -> bool:
+    # 掃除してよいのは、session.json のあるセッションと、空のフォルダ。
+    # 空のフォルダは、init が途中で止まった残り。
+    # ほかのファイルがあるフォルダはセッションではないので、消さない
+    if (d / "session.json").is_file():
+        return True
+    try:
+        return next(d.iterdir(), None) is None
+    except OSError:
+        return False
+
+
 def prune_old(root: Path) -> None:
     # 古いセッションを削除する（中断したセッションの掃除）
     limit = time.time() - KEEP_DAYS * 86400
     if not root.is_dir():
         return
     for d in root.iterdir():
-        if d.is_dir() and session_mtime(d) < limit:
+        if d.is_dir() and prunable(d) and session_mtime(d) < limit:
             shutil.rmtree(d, ignore_errors=True)
             if d.exists():
                 # 開いているファイルなどで消せない。一覧は変えず、標準エラーに知らせる
@@ -289,12 +301,19 @@ def embed(data: dict) -> str:
     )
 
 
+def read_text(path: str) -> str:
+    # 読めなければ ValueError（理由つき）。コマンドの入力ファイルに使う
+    try:
+        return Path(path).read_text(encoding="utf-8")
+    except (OSError, ValueError) as e:
+        raise ValueError(f"{path} を読めません ({e})") from e
+
+
 def read_payload(path: str) -> dict:
     # --input の JSON（オブジェクト）を読む。読めなければ ValueError（理由つき）
+    text = read_text(path)
     try:
-        payload = json.loads(Path(path).read_text(encoding="utf-8"))
-    except OSError as e:
-        raise ValueError(f"{path} を読めません ({e})") from e
+        payload = json.loads(text)
     except ValueError as e:
         raise ValueError(f"{path} は JSON として読めません ({e})") from e
     if not isinstance(payload, dict):
@@ -308,14 +327,15 @@ def cmd_render(args) -> int:
         return 2
     try:
         payload = read_payload(args.input) if args.input else {}
+        answers = read_text(args.answers) if args.answers else None
     except ValueError as e:
         print(e, file=sys.stderr)
         return 2
     d = Path(args.session_dir)
     d.mkdir(parents=True, exist_ok=True)
     if args.intake:
-        if args.answers:
-            state = parse_intake_answers(Path(args.answers).read_text(encoding="utf-8"))
+        if answers is not None:
+            state = parse_intake_answers(answers)
             state.pop("refresh")
             # 空の欄は、--input の初期値を消さない
             payload.update({k: v for k, v in state.items() if k == "kind" or v})
@@ -366,9 +386,6 @@ def cmd_cleanup(args) -> int:
             file=sys.stderr,
         )
         return 1
-    if not d.is_dir():
-        print("削除対象はありません。")
-        return 0
     print(f"削除対象{'' if args.yes else '（--yes で削除）'}: {d}")
     if args.yes:
         try:

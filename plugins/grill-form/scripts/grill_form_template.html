@@ -504,7 +504,7 @@ button.clear { font-size: 12.5px; padding: 1px 10px; color: var(--muted); }
         if (p.indexOf(withSep(d)) === 0) open[d] = true;
       });
     }
-    function dirOf(p) { return p.slice(0, p.lastIndexOf(sep)); }
+    function dirOf(p) { var d = p.slice(0, p.lastIndexOf(sep)); return nodes[d] ? d : withSep(d); }
 
     var ok = { docx: 1, pdf: 1, pptx: 1, xlsx: 1, md: 1, txt: 1 };
     function shown(n) {
@@ -826,11 +826,20 @@ button.clear { font-size: 12.5px; padding: 1px 10px; color: var(--muted); }
 
   function setStatus(text, cls) { statusEl.textContent = text; statusEl.className = cls || ''; }
 
+  // 未回答の確認: 同じ未回答の一覧なら、2回目の押下で送信する。一覧が変わったら、また確認する
+  var warned = '';
+  function shouldWarn(unanswered) {
+    var key = unanswered.join(',');
+    if (!key) { warned = ''; return false; }
+    if (key === warned) return false;
+    warned = key;
+    return true;
+  }
+
   document.getElementById('submit').addEventListener('click', function () {
     var r = build();
     if (r.error) { setStatus(r.error, 'warn'); return; }
-    if (r.unanswered && r.unanswered.length && !window.__forceSubmit) {
-      window.__forceSubmit = true; // 2回目の押下で未回答のまま送信
+    if (r.unanswered && shouldWarn(r.unanswered)) {
       setStatus('未回答: ' + r.unanswered.join(', ') + '。このままなら、もう一度「送信」を押してください。', 'warn');
       return;
     }

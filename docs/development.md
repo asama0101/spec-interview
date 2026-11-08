@@ -21,7 +21,7 @@ grill-form の仕組みとテストです。使い方は [README.md](../README.m
 | サブコマンド | 内容 |
 | --- | --- |
 | `init --data D --theme T` | `D/sessions/` の下にセッションを作り、`session.json` を書いて、パスを 1 行で出力する |
-| `list --data D` | 14 日より古いセッションを削除し、残りのうち、今の作業フォルダで始めたもの（`session.json` の `cwd` が一致するもの。`cwd` を読めないものも含む）を新しい順に 1 行ずつ（フォルダ名・テーマ・更新日時・最新のファイル名、タブ区切り）出力する |
+| `list --data D` | 14 日より古いセッション（`session.json` のあるフォルダと、空のフォルダ。ほかのファイルがあるフォルダは消さない）を削除し、残りのうち、今の作業フォルダで始めたもの（`session.json` の `cwd` が一致するもの。`cwd` を読めないものも含む）を新しい順に 1 行ずつ（フォルダ名・テーマ・更新日時・最新のファイル名、タブ区切り）出力する |
 | `spec-path --theme T` | SPEC の保存先 `<作業フォルダ>/docs/grill-form/specs/<日付>-<テーマ>-design.md` を決め、フォルダを作って出力する（ファイルは作らない）。同名があれば連番を付ける。フォルダを作れなければ終了コード 1 |
 | `render` | 質問 JSON（`--round N --input J.json`）、最終確認（`--final`）、入力フォーム（`--intake [--input J.json] [--answers A.md]`）の HTML を生成する。入力フォームは、作業フォルダの一覧（`folder_scan.py`）を埋め込む。`--answers` は、入力フォームの回答（`## 更新` つき）から入力を復元して作り直す |
 | `doctor` | Python のバージョン、`claude`、Playwright MCP の登録を確認する（`claude mcp get` は 30 秒で打ち切る）。何も変更しない。足りないものがあれば終了コード 1 |

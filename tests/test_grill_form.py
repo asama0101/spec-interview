@@ -1023,3 +1023,91 @@ def test_JSが作る入力フォームの回答をparse_intake_answersが読み�
     assert got["request"] == item["request"]
     assert got["paths"] == item["paths"]
     assert got["request_file"] == (REQ_FILE if refresh else "")
+
+
+def js_eval(pattern: str, expr: str, prelude: str = ""):
+    # テンプレートの pattern に合う部分を取り出し、expr を node で実行して JSON で返す
+    src = grill_form.TEMPLATE.read_text(encoding="utf-8")
+    parts = re.findall(pattern, src, re.DOTALL)
+    assert parts, f"テンプレートに {pattern} がない"
+    script = (
+        prelude
+        + "\n"
+        + "\n".join(parts)
+        + f"\nprocess.stdout.write(JSON.stringify({expr}));\n"
+    )
+    r = subprocess.run(
+        [NODE, "-e", script], capture_output=True, check=True, encoding="utf-8"
+    )
+    return json.loads(r.stdout)
+
+
+@pytest.mark.skipif(NODE is None, reason="node がない環境では JS を実行できない")
+@pytest.mark.parametrize(
+    ("sep", "path", "expected"),
+    [
+        ("\\", "C:\\a.md", "C:\\"),  # ドライブ直下
+        ("\\", "C:\\work\\a.md", "C:\\work"),
+        ("/", "/a.md", "/"),  # ルート直下
+        ("/", "/work/a.md", "/work"),
+    ],
+)
+def test_JSのdirOfはドライブ直下でも一覧のキーと同じ形を返す(sep, path, expected):
+    # 一覧のキーは、ドライブ直下が「C:\」、ほかが末尾に区切りのない形
+    keys = ["C:\\", "C:\\work", "/", "/work"]
+    prelude = (
+        f"var sep = {json.dumps(sep)}; var nodes = {{}};"
+        f" {json.dumps(keys)}.forEach(function (k) {{ nodes[k] = 1; }});"
+    )
+    got = js_eval(
+        r"  function (?:withSep|dirOf)\(.*?\n",
+        f"dirOf({json.dumps(path)})",
+        prelude,
+    )
+    assert got == expected
+
+
+@pytest.mark.skipif(NODE is None, reason="node がない環境では JS を実行できない")
+def test_JSの未回答の確認は未回答の一覧が変わるたびに出す():
+    got = js_eval(
+        r"  var warned = ''.*?\n  }\n",
+        "[shouldWarn(['Q2']), shouldWarn(['Q2']), shouldWarn(['Q1', 'Q2']),"
+        " shouldWarn(['Q1', 'Q2']), shouldWarn([])]",
+    )
+    assert got == [True, False, True, False, False]
+
+
+def test_renderは回答ファイルがなければ短いエラーと終了コード2で返す(
+    workdir, tmp_path, monkeypatch, capsys
+):
+    code = run(
+        monkeypatch,
+        "render",
+        "--session-dir",
+        str(tmp_path / "s"),
+        "--intake",
+        "--answers",
+        str(tmp_path / "none.md"),
+    )
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "読めません" in err
+    assert "Traceback" not in err
+
+
+def test_listはsession_jsonのない古いフォルダを消さない(data_dir, monkeypatch, capsys):
+    # sessions 直下に置かれた、セッションではないフォルダ
+    other = make_old_session(data_dir, "app", 20, ("keep.txt",))
+    assert run(monkeypatch, "list", "--data", str(data_dir)) == 0
+    assert (other / "keep.txt").is_file()
+
+
+def test_cleanupは削除済みのセッションに終了コード1を返す(
+    data_dir, workdir, monkeypatch, capsys
+):
+    d = make_session(data_dir, monkeypatch, capsys)
+    spec = workdir / "SPEC-demo.md"
+    spec.write_text("x", encoding="utf-8")
+    shutil.rmtree(d)
+    assert cleanup(monkeypatch, data_dir, d, spec, "--yes") == 1
+    assert "セッションではない" in capsys.readouterr().err
