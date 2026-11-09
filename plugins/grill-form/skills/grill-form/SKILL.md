@@ -27,13 +27,9 @@ allowed-tools: Bash(python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" init *)
    - テーマは ASCII の短い名前にする（Windows の Git Bash 経由の日本語引数は文字化けするため。例: `api-design`）。
    - 出力は 1 行で、OS の一時フォルダの中の作業用フォルダ（以下 `<D>`）。HTML・回答・質問 JSON など、最終成果物以外はすべてここに置く。掃除は OS に任せる。
    - SPEC の保存先（以下 `<S>`）は、手順9で決める。
-2. 入力フォーム（毎回行う）: 依頼文を集める。
-   - 起動時にテーマ（スキルの引数・同じメッセージの依頼内容）が一緒に送られている場合は、その原文を `<D>/intake.json` に `{"request": "<原文>"}` として書き（Write）、`--input "<D>/intake.json"` を付けて依頼文欄に転記しておく（ユーザーは確認・修正だけする）。なければ空欄のままにする。
-   - `python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" render --session-dir "<D>" --intake [--input "<D>/intake.json"]` で `<D>/intake.html` を生成する。
-   - 手順5〜6と同じ方法で開いて送信を待つ（回答は `<D>/intake.answers.md` に書く）。フォームは、依頼文のテキスト欄と「送信」だけである。参考にする資料は、ユーザーが依頼文の本文にパスで書く。
-   - 回答の `## 依頼文` を読み、以降の前提にする。本文に書かれた資料のパスは、前後の引用符（`"`）を外してから、存在するファイルか確認する。存在しない・フォルダのパスは、ユーザーに再入力か対象ファイルの指定を求める。コピーはせず、元のパスのまま読み、パスの一覧は手順8の概要の「入力」に使う。
+2. 依頼文を受け取る。起動時の引数・同じメッセージの依頼内容を依頼文とする。足りなければ、ターミナルで質問する（AskUserQuestion か通常の質問）。参考にする資料は、ユーザーがパスで示す。
+   - 資料のパスは、前後の引用符（`"`）を外してから、存在するファイルか確認する。存在しない・フォルダのパスは、ユーザーに再入力か対象ファイルの指定を求める。コピーはせず、元のパスのまま読み、パスの一覧は手順8の概要の「入力」に使う。
    - PDF は pdf スキルで文字を読み、図形が重要なときは Read ツールでページを画像として見る。Word は docx スキル、PowerPoint・Excel は pptx・xlsx スキルで文字と図形の構造を読み、図形が重要なときは PDF に書き出して渡すようユーザーに伝える。量が多いときは読み取りをサブエージェントに任せてよい。
-   - 依頼文が空のフォームは送信できない。ユーザーが入力不要と言ったときだけ、この手順を省略する。
 3. 質問 JSON を書く。置き場所は `<D>`、ファイル名は `<D>/round-N.json`。形式は `grill_form.py` の docstring を参照（`title`, `intro`, `questions[]` = `id`, `title`, `body`, `multi`, `options[]`（省略可）= `key`, `label`, `desc`、`recommended[]`, `reason`）。
 4. 生成: `python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" render --session-dir "<D>" --round <N> --input <json>` → `<D>/round-N.html`。
 5. Playwright MCP で `browser_navigate` により `file://` URL を開く。
@@ -83,7 +79,6 @@ round: <N>
 - 聞き返し: …    （Claude への質問。あると状態は「要確認」）
 - 状態: 回答 / 保留 / 要確認 / 未回答
 ```
-入力フォームは frontmatter が `intake: 1` で、本文は `## 依頼文` の 1 節だけ（見出しの次の行から末尾までが依頼文）。
 最終確認は frontmatter が `round` ではなく `final: <K>`（版番号）で、本文は `## 承認` に `判定`（承認 / 修正あり）と `コメント`。
 
 ## 注意

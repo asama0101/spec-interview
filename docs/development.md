@@ -21,7 +21,7 @@ grill-form の仕組みとテストです。使い方は [README.md](../README.m
 | --- | --- |
 | `init --theme T` | OS の一時フォルダの下に `grill-form_<テーマ>_<乱数>` を作り、パスを 1 行で出力する。掃除は OS に任せる |
 | `spec-path --theme T` | SPEC の保存先 `<作業フォルダ>/docs/grill-form/specs/<日付>-<テーマ>-design.md` を決め、フォルダを作って出力する（ファイルは作らない）。同名があれば連番を付ける。フォルダを作れなければ終了コード 1 |
-| `render` | 質問 JSON（`--round N --input J.json`）、最終確認（`--final`）、入力フォーム（`--intake [--input J.json]`、依頼文の欄だけ）の HTML を生成する |
+| `render` | 質問 JSON（`--round N --input J.json`）、最終確認（`--final`）の HTML を生成する |
 | `doctor` | Python のバージョン、`claude`、Playwright MCP の登録を確認する（`claude mcp get` は 30 秒で打ち切る）。何も変更しない。足りないものがあれば終了コード 1 |
 
 ## 保存先

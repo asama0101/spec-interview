@@ -428,42 +428,18 @@ button.clear { font-size: 12.5px; padding: 1px 10px; color: var(--muted); }
     };
   }
 
-  // 入力フォーム: 依頼文
-  var intakeGet = null;
-  function intakeMarkdown(it) {
-    return '---\nsession: ' + data.session + '\nintake: 1\n---\n## 依頼文\n' + it.request + '\n';
-  }
-  function intakeError(it) {
-    return it.request.trim() ? '' : '依頼文を入力してください。';
-  }
-
-  function renderIntake() {
-    if (data.intro) content.appendChild(card_md('intro', data.intro));
-    var card = el('section', 'q');
-    card.appendChild(el('h2', '', '依頼文'));
-    card.appendChild(el('p', 'note', '何を詰めたいか、背景、分かっている制約を書きます。参考にしたい資料があれば、パスを本文に書いてください。'));
-    var req = document.createElement('textarea');
-    req.style.minHeight = '160px';
-    req.value = data.request || '';
-    card.appendChild(req);
-    content.appendChild(card);
-    intakeGet = function () { return { request: req.value.trim() }; };
-  }
-
-  if (data.mode === 'intake') {
-    renderIntake();
-  } else if (data.mode === 'final') {
+  if (data.mode === 'final') {
     renderFinal();
   } else {
     if (data.intro) content.appendChild(card_md('intro', data.intro));
     (data.questions || []).forEach(renderQuestion);
   }
 
-  // 進み具合: 入力フォームと最終確認の画面の左の一覧（質問画面には出さない）
+  // 進み具合: 最終確認の画面の左の一覧（質問画面には出さない）
   function buildSide() {
     if (data.mode === 'round') return;
-    var steps = ['入力', '質問', '最終確認'];
-    var curIdx = data.mode === 'intake' ? 0 : 2;
+    var steps = ['質問', '最終確認'];
+    var curIdx = 1;
     var side = document.getElementById('side');
     side.appendChild(el('h2', '', '進み具合'));
     var ol = el('ol', 'steps');
@@ -480,13 +456,7 @@ button.clear { font-size: 12.5px; padding: 1px 10px; color: var(--muted); }
   function build() {
     // 最終確認は round ではなく final（版番号）として書き、ラウンドの回答と区別する
     var head = '---\nsession: ' + data.session + '\n' +
-      (data.mode === 'intake' ? 'intake: 1' : (data.mode === 'final' ? 'final: ' : 'round: ') + data.round) + '\n---\n';
-    if (data.mode === 'intake') {
-      var it = intakeGet();
-      var err = intakeError(it);
-      if (err) return { error: err };
-      return { md: intakeMarkdown(it) };
-    }
+      (data.mode === 'final' ? 'final: ' : 'round: ') + data.round + '\n---\n';
     if (data.mode === 'final') {
       var a = approveGet();
       if (!a.verdict) return { error: '「承認」か「修正あり」を選んでください。' };

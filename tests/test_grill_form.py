@@ -1,4 +1,4 @@
-"""grill_form.py のパス決定・init・入力フォームを検査する。"""
+"""grill_form.py のパス決定・init・描画を検査する。"""
 
 import datetime
 import json
@@ -173,8 +173,8 @@ def test_空白と日本語を含むパスで実コマンドのinitとrenderとs
         "TEMP": str(temp_root),
         "TMPDIR": str(temp_root),
     }
-    intake = work / "入力 intake.json"
-    intake.write_text(json.dumps({"request": "依頼 本文"}), encoding="utf-8")
+    q = work / "q.json"
+    q.write_text(json.dumps({"questions": []}), encoding="utf-8")
 
     def call(*args):
         return subprocess.run(  # noqa: S603 自分のスクリプトを固定の引数で起動する
@@ -194,22 +194,17 @@ def test_空白と日本語を含むパスで実コマンドのinitとrenderとs
     assert session.resolve().parent == temp_root.resolve()
 
     render = call(
-        "render", "--session-dir", str(session), "--intake", "--input", str(intake)
+        "render", "--session-dir", str(session), "--round", "1", "--input", str(q)
     )
     assert render.returncode == 0, render.stderr
     html = Path(render.stdout.strip()).read_text(encoding="utf-8")
-    assert intake_data(html)["request"] == "依頼 本文"
+    assert embedded_data(html)["questions"] == []
 
     spec = call("spec-path", "--theme", "demo")
     assert spec.returncode == 0, spec.stderr
     spec_file = Path(spec.stdout.strip())
     assert spec_file.parent == work.resolve() / "docs" / "grill-form" / "specs"
     assert spec_file.parent.is_dir()
-
-
-def render_intake(monkeypatch, tmp_path, capsys) -> str:
-    run(monkeypatch, "render", "--session-dir", str(tmp_path / "s"), "--intake")
-    return Path(capsys.readouterr().out.strip()).read_text(encoding="utf-8")
 
 
 def test_テンプレートはinnerHTMLを使わない():
@@ -221,52 +216,7 @@ def test_テンプレートはinnerHTMLを使わない():
     assert lines[0].strip().startswith("//")  # 「使わない」という注釈の 1 行だけ
 
 
-def test_入力フォームは依頼文の欄だけを持つ(tmp_path, monkeypatch, capsys):
-    html = render_intake(monkeypatch, tmp_path, capsys)
-    assert "<textarea" in html or "createElement('textarea')" in html
-    for gone in [
-        "参考資料",
-        "フォルダを読み直す",
-        "Shift",
-        "依頼文のファイル",
-        "## 更新",
-    ]:
-        assert gone not in html
-
-
-def test_render_intakeは_inputのrequestを初期値に埋め込む(
-    tmp_path, monkeypatch, capsys
-):
-    j = tmp_path / "intake.json"
-    j.write_text(json.dumps({"request": "依頼 本文"}), encoding="utf-8")
-    run(
-        monkeypatch,
-        "render",
-        "--session-dir",
-        str(tmp_path / "s"),
-        "--intake",
-        "--input",
-        str(j),
-    )
-    data = intake_data(Path(capsys.readouterr().out.strip()).read_text("utf-8"))
-    assert data["request"] == "依頼 本文"
-    assert "tree" not in data
-
-
-def test_render_intakeは_answersを受け付けない(tmp_path, monkeypatch):
-    with pytest.raises(SystemExit):
-        run(
-            monkeypatch,
-            "render",
-            "--session-dir",
-            str(tmp_path / "s"),
-            "--intake",
-            "--answers",
-            str(tmp_path / "x.md"),
-        )
-
-
-def intake_data(html: str) -> dict:
+def embedded_data(html: str) -> dict:
     start = html.index('<script id="data" type="application/json">') + len(
         '<script id="data" type="application/json">'
     )
@@ -279,15 +229,6 @@ def test_テンプレートはゼロ幅スペースで依頼文を加工しな�
     ).read_text(encoding="utf-8")
     assert "u200b" not in text.lower()
     assert "​" not in text
-
-
-def test_入力フォームの描画はintroを表示する():
-    text = (
-        ROOT / "plugins" / "grill-form" / "scripts" / "grill_form_template.html"
-    ).read_text(encoding="utf-8")
-    body = text[text.index("function renderIntake") :]
-    body = body[: body.index("if (data.mode === 'intake')")]
-    assert "data.intro" in body
 
 
 def test_埋め込みはscript終了タグを無害化する():
@@ -369,7 +310,7 @@ def test_質問のJSONの全項目がHTMLに埋め込まれる(tmp_path, monkeyp
         str(q),
     )
     html = Path(capsys.readouterr().out.strip()).read_text(encoding="utf-8")
-    assert intake_data(html)["questions"] == questions
+    assert embedded_data(html)["questions"] == questions
 
 
 def test_推奨の候補を左の線で示していない(tmp_path, monkeypatch, capsys):
@@ -461,9 +402,8 @@ def test_doctorはclaudeを実行できないときOSErrorで落ちず1を返す
 
 
 @pytest.mark.parametrize("text", ["{壊れた", "[1, 2]", ""])
-@pytest.mark.parametrize("extra", [["--round", "1"], ["--intake"]])
 def test_renderは壊れた入力JSONを短いエラーと終了コード2で返す(
-    workdir, tmp_path, monkeypatch, capsys, text, extra
+    workdir, tmp_path, monkeypatch, capsys, text
 ):
     src = tmp_path / "bad.json"
     src.write_text(text, encoding="utf-8")
@@ -474,7 +414,8 @@ def test_renderは壊れた入力JSONを短いエラーと終了コード2で返
         str(tmp_path / "s"),
         "--input",
         str(src),
-        *extra,
+        "--round",
+        "1",
     )
     assert code == 2
     err = capsys.readouterr().err
@@ -497,27 +438,6 @@ def test_renderは入力JSONがなければ短いエラーと終了コード2で
     )
     assert code == 2
     assert "読めません" in capsys.readouterr().err
-
-
-@pytest.mark.skipif(NODE is None, reason="node がない環境では JS を実行できない")
-def test_JSの依頼文の回答は本文をそのまま入れる():
-    request = "## 依頼文\n---\n本文"
-    got = js_eval(
-        r"  function intakeMarkdown\(.*?\n  }\n",
-        f"intakeMarkdown({{request: {json.dumps(request)}}})",
-        "var data = {session: 's'};",
-    )
-    assert got == "---\nsession: s\nintake: 1\n---\n## 依頼文\n## 依頼文\n---\n本文\n"
-
-
-@pytest.mark.skipif(NODE is None, reason="node がない環境では JS を実行できない")
-def test_JSの空と空白だけの依頼文は送信できない():
-    got = js_eval(
-        r"  function intakeError\(.*?\n  }\n",
-        "[intakeError({request: ''}), intakeError({request: ' \\n '}),"
-        " intakeError({request: 'x'})]",
-    )
-    assert got == ["依頼文を入力してください。", "依頼文を入力してください。", ""]
 
 
 def js_eval(pattern: str, expr: str, prelude: str = ""):

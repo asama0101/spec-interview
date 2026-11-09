@@ -15,10 +15,6 @@
                               --final のときは N を最終確認の版番号とし、
                               final-N.html を生成する
                               （修正のたびに版を上げ、前の版を上書きしない）
-  render --session-dir D --intake [--input J.json]
-                              入力フォーム intake.html（依頼文の欄だけ）を生成する。
-                              J.json は {"title","intro","request"} で省略可
-                              （request は依頼文欄の初期入力）
   doctor                      動作に必要なもの（Python の版、claude、Playwright MCP）を
                               確認する。何も変更しない。足りないときは不足を表示し、
                               終了コード 1 で終わる
@@ -115,33 +111,23 @@ def read_payload(path: str) -> dict:
 
 
 def cmd_render(args) -> int:
-    if not args.intake and (args.round is None or not args.input):
-        print("--round と --input が必要です（--intake を除く）。", file=sys.stderr)
+    if args.round is None or not args.input:
+        print("--round と --input が必要です。", file=sys.stderr)
         return 2
     try:
-        payload = read_payload(args.input) if args.input else {}
+        payload = read_payload(args.input)
     except ValueError as e:
         print(e, file=sys.stderr)
         return 2
     d = Path(args.session_dir)
     d.mkdir(parents=True, exist_ok=True)
-    if args.intake:
-        payload["mode"] = "intake"
-        payload["round"] = 0
-        payload.setdefault("title", "入力（依頼文）")
-        out = d / "intake.html"
-    else:
-        payload["round"] = args.round
-        payload["mode"] = "final" if args.final else "round"
-        if not payload.get("title"):
-            payload["title"] = (
-                f"最終確認（第{args.round}版）"
-                if args.final
-                else f"ラウンド {args.round}"
-            )
-        out = d / (
-            f"final-{args.round}.html" if args.final else f"round-{args.round}.html"
+    payload["round"] = args.round
+    payload["mode"] = "final" if args.final else "round"
+    if not payload.get("title"):
+        payload["title"] = (
+            f"最終確認（第{args.round}版）" if args.final else f"ラウンド {args.round}"
         )
+    out = d / (f"final-{args.round}.html" if args.final else f"round-{args.round}.html")
     payload["session"] = d.name
     html = TEMPLATE.read_text(encoding="utf-8").replace("__DATA__", embed(payload))
     out.write_text(html, encoding="utf-8")
@@ -214,9 +200,6 @@ def main() -> int:
     p.add_argument("--session-dir", required=True)
     p.add_argument("--round", type=int)
     p.add_argument("--final", action="store_true")
-    p.add_argument(
-        "--intake", action="store_true", help="入力フォーム intake.html を生成する"
-    )
     p.add_argument("--input")
     p.set_defaults(fn=cmd_render)
 
