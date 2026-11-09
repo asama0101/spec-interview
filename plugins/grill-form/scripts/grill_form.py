@@ -40,7 +40,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-__version__ = "2.0.0"
+__version__ = "2.0.1"
 MIN_PYTHON = (3, 8)
 TEMPLATE = Path(__file__).with_name("grill_form_template.html")
 INVALID = re.compile(r'[\\/:*?"<>|\s]+')
