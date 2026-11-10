@@ -229,7 +229,8 @@ def test_doctorスキルは名前がディレクトリ名と一致し自動起�
 def test_doctorスキルはdoctorだけを許可する(py):
     allowed = parse_frontmatter(DOCTOR_MD.read_text(encoding="utf-8"))["allowed-tools"]
     assert (
-        f'Bash({py} "${{CLAUDE_PLUGIN_ROOT}}/scripts/spec_interview.py" doctor)' in allowed
+        f'Bash({py} "${{CLAUDE_PLUGIN_ROOT}}/scripts/spec_interview.py" '
+        "doctor)" in allowed
     )
     assert "*" not in allowed
 
@@ -241,7 +242,8 @@ def test_doctorスキルは他の絶対パスを使わず変更しないと書�
 
 
 def test_READMEにdoctorの呼び出し方がある():
-    assert "spec_interview.py doctor" in (ROOT / "README.md").read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "spec_interview.py doctor" in readme
 
 
 def test_SKILLが質問JSONとfinal_JSONのファイル名を決めている(text):

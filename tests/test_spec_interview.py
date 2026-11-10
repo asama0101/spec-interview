@@ -41,7 +41,11 @@ SPECS = Path("docs") / "spec-interview" / "specs"
 
 def test_spec_pathは作業フォルダのdocs配下にテーマ_日付_designを返す(workdir):
     assert spec_interview.spec_path("api-design", today=TODAY) == (
-        workdir / "docs" / "spec-interview" / "specs" / "2026-10-24-api-design-design.md"
+        workdir
+        / "docs"
+        / "spec-interview"
+        / "specs"
+        / "2026-10-24-api-design-design.md"
     )
 
 
@@ -140,7 +144,8 @@ def test_initは同じテーマを続けて呼んでも別のフォルダを作�
 def test_initはパスに使えない文字だけのテーマをuntitledにする(
     theme, temp_root, monkeypatch, capsys
 ):
-    assert init_dir(monkeypatch, capsys, theme).name.startswith("spec-interview_untitled_")
+    name = init_dir(monkeypatch, capsys, theme).name
+    assert name.startswith("spec-interview_untitled_")
 
 
 def test_initは日本語のテーマをそのまま名前に使う(temp_root, monkeypatch, capsys):
@@ -389,7 +394,9 @@ def _register_marketplace(monkeypatch, tmp_path, data):
     monkeypatch.setattr(spec_interview, "KNOWN_MARKETPLACES", f)
 
 
-GITHUB_ENTRY = {"spec-interview": {"source": {"source": "github", "repo": spec_interview.REPO}}}
+GITHUB_ENTRY = {
+    "spec-interview": {"source": {"source": "github", "repo": spec_interview.REPO}}
+}
 
 
 def test_doctorは現在の版を表示する(monkeypatch, capsys):
@@ -420,7 +427,9 @@ def test_doctorは新しい版があれば知らせるが0で終わる(monkeypat
 def test_doctorは同じ版なら最新版と知らせる(monkeypatch, capsys, tmp_path):
     _fake_claude(monkeypatch)
     _register_marketplace(monkeypatch, tmp_path, GITHUB_ENTRY)
-    monkeypatch.setattr(spec_interview, "latest_version", lambda: spec_interview.__version__)
+    monkeypatch.setattr(
+        spec_interview, "latest_version", lambda: spec_interview.__version__
+    )
     run(monkeypatch, "doctor")
     assert "最新版です" in capsys.readouterr().out
 
