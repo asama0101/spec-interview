@@ -96,6 +96,8 @@ python plugins/grill-form/scripts/grill_form.py doctor
 | Playwright MCP の登録 | `playwright` の名前で登録されていて、30 秒以内に応答する |
 | `file://` の許可 | 登録に `--allow-unrestricted-file-access` が付いている |
 
+あわせて、現在の版を `INFO:` で表示します。GitHub（`asama0101/grill-form`）をマーケットプレイスに登録していれば、最新版かも確認します。新しい版があっても `NG:` にはならず、終了コードも 0 です。GitHub に接続できないときは、確認できなかったと表示するだけです。
+
 そろっていれば `OK: 動作に必要なものはそろっています。` と出ます。足りないものがあると `NG: …` と理由を出し、終了コード 1 で終わります。`NG:` のあとの文言と同じ見出しを、[困ったとき](#困ったとき)で探してください。
 
 ## 使い方

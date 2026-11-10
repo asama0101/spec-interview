@@ -372,6 +372,144 @@ def test_doctorはPythonが古ければ1で終わる(monkeypatch, capsys):
     assert "NG: Python" in capsys.readouterr().out
 
 
+@pytest.fixture(autouse=True)
+def _no_network_no_home(monkeypatch, tmp_path_factory):
+    # doctor の版確認が、実際のネットワークと利用者の登録情報に触れないようにする
+    monkeypatch.setattr(grill_form, "latest_version", lambda: None)
+    monkeypatch.setattr(
+        grill_form,
+        "KNOWN_MARKETPLACES",
+        tmp_path_factory.mktemp("home") / "known_marketplaces.json",
+    )
+
+
+def _register_marketplace(monkeypatch, tmp_path, data):
+    f = tmp_path / "known.json"
+    f.write_text(json.dumps(data), encoding="utf-8")
+    monkeypatch.setattr(grill_form, "KNOWN_MARKETPLACES", f)
+
+
+GITHUB_ENTRY = {"grill-form": {"source": {"source": "github", "repo": grill_form.REPO}}}
+
+
+def test_doctorは現在の版を表示する(monkeypatch, capsys):
+    _fake_claude(monkeypatch)
+    run(monkeypatch, "doctor")
+    assert f"現在の版は {grill_form.__version__}" in capsys.readouterr().out
+
+
+def test_doctorはGitHub未登録なら最新版の確認を省略する(monkeypatch, capsys):
+    _fake_claude(monkeypatch)
+    called = []
+    monkeypatch.setattr(grill_form, "latest_version", lambda: called.append(1))
+    assert run(monkeypatch, "doctor") == 0
+    assert called == []
+    assert "最新版の確認は省略" in capsys.readouterr().out
+
+
+def test_doctorは新しい版があれば知らせるが0で終わる(monkeypatch, capsys, tmp_path):
+    _fake_claude(monkeypatch)
+    _register_marketplace(monkeypatch, tmp_path, GITHUB_ENTRY)
+    monkeypatch.setattr(grill_form, "latest_version", lambda: "99.0.0")
+    assert run(monkeypatch, "doctor") == 0
+    out = capsys.readouterr().out
+    assert "新しい版 99.0.0 があります" in out
+    assert "NG" not in out
+
+
+def test_doctorは同じ版なら最新版と知らせる(monkeypatch, capsys, tmp_path):
+    _fake_claude(monkeypatch)
+    _register_marketplace(monkeypatch, tmp_path, GITHUB_ENTRY)
+    monkeypatch.setattr(grill_form, "latest_version", lambda: grill_form.__version__)
+    run(monkeypatch, "doctor")
+    assert "最新版です" in capsys.readouterr().out
+
+
+def test_doctorは現在の版が新しくても更新を促さない(monkeypatch, capsys, tmp_path):
+    _fake_claude(monkeypatch)
+    _register_marketplace(monkeypatch, tmp_path, GITHUB_ENTRY)
+    monkeypatch.setattr(grill_form, "latest_version", lambda: "0.0.1")
+    run(monkeypatch, "doctor")
+    out = capsys.readouterr().out
+    assert "があります" not in out
+    assert "最新版です" in out
+
+
+def test_doctorは最新版を取得できなくても0で終わる(monkeypatch, capsys, tmp_path):
+    _fake_claude(monkeypatch)
+    _register_marketplace(monkeypatch, tmp_path, GITHUB_ENTRY)
+    assert run(monkeypatch, "doctor") == 0
+    assert "最新版を確認できませんでした" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"x": {"source": {"source": "github", "repo": "other/repo"}}},
+        {"x": {"source": {"source": "directory", "path": "."}}},
+        [1, 2],
+    ],
+)
+def test_登録はこのリポジトリのGitHubだけを数える(monkeypatch, tmp_path, data):
+    _register_marketplace(monkeypatch, tmp_path, data)
+    assert grill_form.github_marketplace_registered() is False
+
+
+def test_登録ファイルが壊れていれば未登録として扱う(monkeypatch, tmp_path):
+    f = tmp_path / "known.json"
+    f.write_text("{壊れた", encoding="utf-8")
+    monkeypatch.setattr(grill_form, "KNOWN_MARKETPLACES", f)
+    assert grill_form.github_marketplace_registered() is False
+
+
+def test_登録されていればTrue(monkeypatch, tmp_path):
+    _register_marketplace(monkeypatch, tmp_path, GITHUB_ENTRY)
+    assert grill_form.github_marketplace_registered() is True
+
+
+class _Resp:
+    def __init__(self, body):
+        self.body = body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def read(self):
+        return self.body
+
+
+# latest_version 自体を試すテストは、autouse の置き換えを外した本物を使う
+_REAL_LATEST = grill_form.latest_version
+
+
+def test_latest_versionはplugin_jsonの版を返す(monkeypatch):
+    monkeypatch.setattr(
+        grill_form.urllib.request,
+        "urlopen",
+        lambda url, timeout: _Resp(b'{"version": "3.1.4"}'),
+    )
+    assert _REAL_LATEST() == "3.1.4"
+
+
+@pytest.mark.parametrize("body", [b"{broken", b"[1]", b'{"name": "x"}'])
+def test_latest_versionは読めなければNone(monkeypatch, body):
+    monkeypatch.setattr(
+        grill_form.urllib.request, "urlopen", lambda url, timeout: _Resp(body)
+    )
+    assert _REAL_LATEST() is None
+
+
+def test_latest_versionは通信できなければNone(monkeypatch):
+    def down(url, timeout):
+        raise OSError("offline")
+
+    monkeypatch.setattr(grill_form.urllib.request, "urlopen", down)
+    assert _REAL_LATEST() is None
+
+
 def test_doctorは何も作らない(monkeypatch, workdir, tmp_path):
     _fake_claude(monkeypatch)
     run(monkeypatch, "doctor")

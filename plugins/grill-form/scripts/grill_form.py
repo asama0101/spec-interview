@@ -17,7 +17,9 @@
                               （修正のたびに版を上げ、前の版を上書きしない）
   doctor                      動作に必要なもの（Python の版、claude、Playwright MCP）を
                               確認する。何も変更しない。足りないときは不足を表示し、
-                              終了コード 1 で終わる
+                              終了コード 1 で終わる。あわせて現在の版を表示し、
+                              GitHub をマーケットプレイスに登録していれば、
+                              最新版かも確認する（更新があっても終了コードは 0）
 
 質問 JSON:
   {"title": "...", "intro": "...", "questions": [
@@ -38,10 +40,17 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.request
 from pathlib import Path
 
 __version__ = "2.0.1"
 MIN_PYTHON = (3, 8)
+REPO = "asama0101/grill-form"
+LATEST_URL = (
+    f"https://raw.githubusercontent.com/{REPO}/main"
+    "/plugins/grill-form/.claude-plugin/plugin.json"
+)
+KNOWN_MARKETPLACES = Path.home() / ".claude" / "plugins" / "known_marketplaces.json"
 TEMPLATE = Path(__file__).with_name("grill_form_template.html")
 INVALID = re.compile(r'[\\/:*?"<>|\s]+')
 
@@ -150,7 +159,57 @@ def mcp_get(claude: str) -> str | None:
     return None if r.returncode else r.stdout.decode("utf-8", "replace")
 
 
+def github_marketplace_registered() -> bool:
+    # このリポジトリを GitHub のマーケットプレイスとして登録しているか
+    try:
+        known = json.loads(KNOWN_MARKETPLACES.read_text(encoding="utf-8"))
+        return any(
+            m["source"]["source"] == "github" and m["source"]["repo"] == REPO
+            for m in known.values()
+        )
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return False
+
+
+def latest_version() -> str | None:
+    # GitHub の main にある plugin.json の版。取得できなければ None
+    try:
+        with urllib.request.urlopen(LATEST_URL, timeout=10) as r:  # noqa: S310 固定の https URL
+            version = json.loads(r.read().decode("utf-8"))["version"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    return version if isinstance(version, str) else None
+
+
+def version_key(v: str) -> tuple:
+    return tuple(int(n) if n.isdigit() else 0 for n in re.split(r"[.\-+]", v))
+
+
+def report_version() -> None:
+    # 版の案内。更新が必要でも NG にはしない（動作環境の不足ではないため）
+    print(f"INFO: 現在の版は {__version__} です。")
+    if not github_marketplace_registered():
+        print(
+            f"INFO: GitHub（{REPO}）をマーケットプレイスに登録していないので、"
+            "最新版の確認は省略します。"
+        )
+        return
+    latest = latest_version()
+    if latest is None:
+        print("INFO: 最新版を確認できませんでした（GitHub に接続できません）。")
+    elif version_key(latest) > version_key(__version__):
+        print(
+            f"INFO: 新しい版 {latest} があります。"
+            "`claude plugin marketplace update grill-form` のあと、"
+            "`claude plugin update grill-form@grill-form` で更新し、"
+            "Claude Code を再起動してください。"
+        )
+    else:
+        print("INFO: 最新版です。")
+
+
 def cmd_doctor(args) -> int:
+    report_version()
     ng = []
     if sys.version_info < MIN_PYTHON:
         ng.append(f"Python {'.'.join(map(str, MIN_PYTHON))} 以上が必要です。")
