@@ -346,8 +346,8 @@ def _fake_claude(monkeypatch, which="claude", returncode=0, stdout=_MCP_GET_OK):
 
 def test_doctorは_file_URLを許可する引数がなければ1で終わる(monkeypatch, capsys):
     _fake_claude(monkeypatch, stdout=b"playwright:\n  Args: @playwright/mcp@latest\n")
-    assert run(monkeypatch, "doctor") == 1
-    assert "NG: Playwright MCP に --allow-unrestricted-file-access" in (
+    assert run(monkeypatch, "doctor") == 3
+    assert "[NG] Playwright MCP に --allow-unrestricted-file-access" in (
         capsys.readouterr().out
     )
 
@@ -360,21 +360,21 @@ def test_doctorは依存がそろっていれば0で終わる(monkeypatch, capsy
 
 def test_doctorはclaudeがなければ不足を出して1で終わる(monkeypatch, capsys):
     _fake_claude(monkeypatch, which=None)
-    assert run(monkeypatch, "doctor") == 1
-    assert "NG: claude" in capsys.readouterr().out
+    assert run(monkeypatch, "doctor") == 3
+    assert "[NG] claude" in capsys.readouterr().out
 
 
 def test_doctorはPlaywright_MCPが未登録なら1で終わる(monkeypatch, capsys):
     _fake_claude(monkeypatch, returncode=1)
-    assert run(monkeypatch, "doctor") == 1
-    assert "NG: Playwright MCP" in capsys.readouterr().out
+    assert run(monkeypatch, "doctor") == 3
+    assert "[NG] Playwright MCP" in capsys.readouterr().out
 
 
 def test_doctorはPythonが古ければ1で終わる(monkeypatch, capsys):
     _fake_claude(monkeypatch)
     monkeypatch.setattr(spec_interview, "MIN_PYTHON", (99, 0))
-    assert run(monkeypatch, "doctor") == 1
-    assert "NG: Python" in capsys.readouterr().out
+    assert run(monkeypatch, "doctor") == 3
+    assert "[NG] Python" in capsys.readouterr().out
 
 
 @pytest.fixture(autouse=True)
@@ -533,8 +533,8 @@ def test_doctorはclaudeが応答しないときタイムアウトで1を返す(
         raise subprocess.TimeoutExpired("claude", k["timeout"])
 
     monkeypatch.setattr(spec_interview.subprocess, "run", hang)
-    assert run(monkeypatch, "doctor") == 1
-    assert "NG: Playwright MCP" in capsys.readouterr().out
+    assert run(monkeypatch, "doctor") == 3
+    assert "[NG] Playwright MCP" in capsys.readouterr().out
 
 
 def test_doctorはclaudeを実行できないときOSErrorで落ちず1を返す(monkeypatch, capsys):
@@ -544,8 +544,8 @@ def test_doctorはclaudeを実行できないときOSErrorで落ちず1を返す
         raise PermissionError("claude")
 
     monkeypatch.setattr(spec_interview.subprocess, "run", broken)
-    assert run(monkeypatch, "doctor") == 1
-    assert "NG: Playwright MCP" in capsys.readouterr().out
+    assert run(monkeypatch, "doctor") == 3
+    assert "[NG] Playwright MCP" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("text", ["{壊れた", "[1, 2]", ""])

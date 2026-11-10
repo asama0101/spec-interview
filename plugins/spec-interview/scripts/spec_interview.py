@@ -187,25 +187,25 @@ def version_key(v: str) -> tuple:
 
 def report_version() -> None:
     # 版の案内。更新が必要でも NG にはしない（動作環境の不足ではないため）
-    print(f"INFO: 現在の版は {__version__} です。")
+    print(f"[情報] 現在の版は {__version__} です。")
     if not github_marketplace_registered():
         print(
-            f"INFO: GitHub（{REPO}）をマーケットプレイスに登録していないので、"
+            f"[情報] GitHub（{REPO}）をマーケットプレイスに登録していないので、"
             "最新版の確認は省略します。"
         )
         return
     latest = latest_version()
     if latest is None:
-        print("INFO: 最新版を確認できませんでした（GitHub に接続できません）。")
+        print("[情報] 最新版を確認できませんでした（GitHub に接続できません）。")
     elif version_key(latest) > version_key(__version__):
         print(
-            f"INFO: 新しい版 {latest} があります。"
+            f"[情報] 新しい版 {latest} があります。"
             "`claude plugin marketplace update spec-interview` のあと、"
             "`claude plugin update spec-interview@spec-interview` で更新し、"
             "Claude Code を再起動してください。"
         )
     else:
-        print("INFO: 最新版です。")
+        print("[情報] 最新版です。")
 
 
 def cmd_doctor(args) -> int:
@@ -232,10 +232,10 @@ def cmd_doctor(args) -> int:
                 "`file://` のフォームが開けません（README の困ったとき）。"
             )
     for msg in ng:
-        print(f"NG: {msg}")
+        print(f"[NG] {msg}")
     if not ng:
-        print("OK: 動作に必要なものはそろっています。")
-    return 1 if ng else 0
+        print("[OK] 動作に必要なものはそろっています。")
+    return 3 if ng else 0
 
 
 def main() -> int:
