@@ -43,7 +43,7 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
-__version__ = "2.0.1"
+__version__ = "2.1.0"
 MIN_PYTHON = (3, 8)
 REPO = "asama0101/grill-form"
 LATEST_URL = (
