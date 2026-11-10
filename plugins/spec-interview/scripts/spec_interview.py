@@ -244,7 +244,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    ap.add_argument("--version", action="version", version=f"spec-interview {__version__}")
+    ap.add_argument(
+        "--version", action="version", version=f"spec-interview {__version__}"
+    )
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     p = sub.add_parser("init")

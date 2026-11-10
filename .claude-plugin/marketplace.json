@@ -1,7 +1,7 @@
 {
   "name": "spec-interview",
-  "description": "spec-interview プラグインの配布用マーケットプレイス。",
   "owner": { "name": "spec-interview contributors" },
+  "metadata": { "description": "spec-interview プラグインの配布用マーケットプレイス。" },
   "plugins": [
     {
       "name": "spec-interview",
