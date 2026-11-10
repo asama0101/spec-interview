@@ -17,7 +17,7 @@
                               （修正のたびに版を上げ、前の版を上書きしない）
   doctor                      動作に必要なもの（Python の版、claude、Playwright MCP）を
                               確認する。何も変更しない。足りないときは不足を表示し、
-                              終了コード 1 で終わる。あわせて現在の版を表示し、
+                              終了コード 3 で終わる。あわせて現在の版を表示し、
                               GitHub をマーケットプレイスに登録していれば、
                               最新版かも確認する（更新があっても終了コードは 0）
 
@@ -185,57 +185,86 @@ def version_key(v: str) -> tuple:
     return tuple(int(n) if n.isdigit() else 0 for n in re.split(r"[.\-+]", v))
 
 
-def report_version() -> None:
-    # 版の案内。更新が必要でも NG にはしない（動作環境の不足ではないため）
-    print(f"INFO: 現在の版は {__version__} です。")
+def version_lines() -> list[str]:
+    # 版の項目。更新が必要でも NG にはしない（動作環境の不足ではないため）
+    head = f"[情報] 版: v{__version__}"
     if not github_marketplace_registered():
-        print(
-            f"INFO: GitHub（{REPO}）をマーケットプレイスに登録していないので、"
-            "最新版の確認は省略します。"
-        )
-        return
+        return [
+            f"{head}（GitHub（{REPO}）をマーケットプレイスに登録していないため、"
+            "最新かは確認しません）"
+        ]
     latest = latest_version()
     if latest is None:
-        print("INFO: 最新版を確認できませんでした（GitHub に接続できません）。")
-    elif version_key(latest) > version_key(__version__):
-        print(
-            f"INFO: 新しい版 {latest} があります。"
-            "`claude plugin marketplace update spec-interview` のあと、"
+        return [f"{head}（最新版を確認できませんでした: GitHub に接続できません）"]
+    if version_key(latest) > version_key(__version__):
+        return [
+            f"{head}（GitHub に v{latest} があります）",
+            "  → `claude plugin marketplace update spec-interview` のあと、"
             "`claude plugin update spec-interview@spec-interview` で更新し、"
-            "Claude Code を再起動してください。"
-        )
-    else:
-        print("INFO: 最新版です。")
+            "Claude Code を再起動する",
+        ]
+    return [f"{head}（最新です）"]
 
 
 def cmd_doctor(args) -> int:
-    report_version()
-    ng = []
-    if sys.version_info < MIN_PYTHON:
-        ng.append(f"Python {'.'.join(map(str, MIN_PYTHON))} 以上が必要です。")
+    lines = []
+    ng = False
+
+    def check(ok, name, good, bad, fix=None):
+        nonlocal ng
+        if ok:
+            lines.append(f"[OK] {name}: {good}")
+            return
+        ng = True
+        lines.append(f"[NG] {name}: {bad}")
+        if fix:
+            lines.append(f"  → {fix}")
+
+    check(
+        sys.platform == "win32",
+        "OS",
+        "Windows",
+        f"{sys.platform}（Windows 専用です）",
+        "Windows で使う",
+    )
+    want = ".".join(map(str, MIN_PYTHON))
+    py = ".".join(map(str, sys.version_info[:2]))
+    check(
+        sys.version_info >= MIN_PYTHON,
+        "実行環境",
+        f"Python {py}（{want} 以上が必要）",
+        f"Python {want} 以上が必要です。",
+        f"Python {want} 以上を入れる",
+    )
     claude = shutil.which("claude")
-    if claude is None:
-        ng.append(
-            "claude コマンドが見つかりません（Playwright MCP の確認に使います）。"
-        )
-    else:
+    check(
+        claude is not None,
+        "claude コマンド",
+        "あります",
+        "見つかりません（Playwright MCP の確認に使います）。",
+        "Claude Code の `claude` コマンドを PATH に通す",
+    )
+    if claude is not None:
         mcp = mcp_get(claude)
-        if mcp is None:
-            ng.append(
-                "Playwright MCP を確認できません。"
-                "`playwright` の名前で登録されていないか、"
-                "応答がありません（README の導入方法の手順 3）。"
+        check(
+            mcp is not None,
+            "Playwright MCP",
+            "登録されています",
+            "確認できません。`playwright` の名前で登録されていないか、"
+            "応答がありません。",
+            "README の導入方法の手順 3 を行う",
+        )
+        if mcp is not None:
+            check(
+                "--allow-unrestricted-file-access" in mcp,
+                "file:// の許可",
+                "--allow-unrestricted-file-access が付いています",
+                "--allow-unrestricted-file-access が付いていません。"
+                "`file://` のフォームが開けません。",
+                "README の困ったときの手順で登録し直す",
             )
-        elif "--allow-unrestricted-file-access" not in mcp:
-            ng.append(
-                "Playwright MCP に --allow-unrestricted-file-access が付いていません。"
-                "`file://` のフォームが開けません（README の困ったとき）。"
-            )
-    for msg in ng:
-        print(f"NG: {msg}")
-    if not ng:
-        print("OK: 動作に必要なものはそろっています。")
-    return 1 if ng else 0
+    print("\n".join(lines + version_lines()))
+    return 3 if ng else 0
 
 
 def main() -> int:

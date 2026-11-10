@@ -346,8 +346,8 @@ def _fake_claude(monkeypatch, which="claude", returncode=0, stdout=_MCP_GET_OK):
 
 def test_doctorは_file_URLを許可する引数がなければ1で終わる(monkeypatch, capsys):
     _fake_claude(monkeypatch, stdout=b"playwright:\n  Args: @playwright/mcp@latest\n")
-    assert run(monkeypatch, "doctor") == 1
-    assert "NG: Playwright MCP に --allow-unrestricted-file-access" in (
+    assert run(monkeypatch, "doctor") == 3
+    assert "[NG] file:// の許可: --allow-unrestricted-file-access" in (
         capsys.readouterr().out
     )
 
@@ -360,21 +360,21 @@ def test_doctorは依存がそろっていれば0で終わる(monkeypatch, capsy
 
 def test_doctorはclaudeがなければ不足を出して1で終わる(monkeypatch, capsys):
     _fake_claude(monkeypatch, which=None)
-    assert run(monkeypatch, "doctor") == 1
-    assert "NG: claude" in capsys.readouterr().out
+    assert run(monkeypatch, "doctor") == 3
+    assert "[NG] claude コマンド" in capsys.readouterr().out
 
 
 def test_doctorはPlaywright_MCPが未登録なら1で終わる(monkeypatch, capsys):
     _fake_claude(monkeypatch, returncode=1)
-    assert run(monkeypatch, "doctor") == 1
-    assert "NG: Playwright MCP" in capsys.readouterr().out
+    assert run(monkeypatch, "doctor") == 3
+    assert "[NG] Playwright MCP" in capsys.readouterr().out
 
 
 def test_doctorはPythonが古ければ1で終わる(monkeypatch, capsys):
     _fake_claude(monkeypatch)
     monkeypatch.setattr(spec_interview, "MIN_PYTHON", (99, 0))
-    assert run(monkeypatch, "doctor") == 1
-    assert "NG: Python" in capsys.readouterr().out
+    assert run(monkeypatch, "doctor") == 3
+    assert "[NG] 実行環境: Python" in capsys.readouterr().out
 
 
 @pytest.fixture(autouse=True)
@@ -399,10 +399,26 @@ GITHUB_ENTRY = {
 }
 
 
+def test_doctorはWindows以外ならOSをNGにして3で終わる(monkeypatch, capsys):
+    _fake_claude(monkeypatch)
+    monkeypatch.setattr(spec_interview.sys, "platform", "linux")
+    assert run(monkeypatch, "doctor") == 3
+    assert "[NG] OS: linux（Windows 専用です）" in capsys.readouterr().out
+
+
+def test_doctorは項目を標準の順に出し版を最後にする(monkeypatch, capsys):
+    _fake_claude(monkeypatch)
+    run(monkeypatch, "doctor")
+    names = [x.split(":")[0] for x in capsys.readouterr().out.splitlines()]
+    assert names[0] == "[OK] OS"
+    assert names[1] == "[OK] 実行環境"
+    assert names[-1] == "[情報] 版"
+
+
 def test_doctorは現在の版を表示する(monkeypatch, capsys):
     _fake_claude(monkeypatch)
     run(monkeypatch, "doctor")
-    assert f"現在の版は {spec_interview.__version__}" in capsys.readouterr().out
+    assert f"[情報] 版: v{spec_interview.__version__}" in capsys.readouterr().out
 
 
 def test_doctorはGitHub未登録なら最新版の確認を省略する(monkeypatch, capsys):
@@ -411,7 +427,7 @@ def test_doctorはGitHub未登録なら最新版の確認を省略する(monkeyp
     monkeypatch.setattr(spec_interview, "latest_version", lambda: called.append(1))
     assert run(monkeypatch, "doctor") == 0
     assert called == []
-    assert "最新版の確認は省略" in capsys.readouterr().out
+    assert "最新かは確認しません" in capsys.readouterr().out
 
 
 def test_doctorは新しい版があれば知らせるが0で終わる(monkeypatch, capsys, tmp_path):
@@ -420,7 +436,7 @@ def test_doctorは新しい版があれば知らせるが0で終わる(monkeypat
     monkeypatch.setattr(spec_interview, "latest_version", lambda: "99.0.0")
     assert run(monkeypatch, "doctor") == 0
     out = capsys.readouterr().out
-    assert "新しい版 99.0.0 があります" in out
+    assert "GitHub に v99.0.0 があります" in out
     assert "NG" not in out
 
 
@@ -431,7 +447,7 @@ def test_doctorは同じ版なら最新版と知らせる(monkeypatch, capsys, t
         spec_interview, "latest_version", lambda: spec_interview.__version__
     )
     run(monkeypatch, "doctor")
-    assert "最新版です" in capsys.readouterr().out
+    assert "（最新です）" in capsys.readouterr().out
 
 
 def test_doctorは現在の版が新しくても更新を促さない(monkeypatch, capsys, tmp_path):
@@ -441,7 +457,7 @@ def test_doctorは現在の版が新しくても更新を促さない(monkeypatc
     run(monkeypatch, "doctor")
     out = capsys.readouterr().out
     assert "があります" not in out
-    assert "最新版です" in out
+    assert "（最新です）" in out
 
 
 def test_doctorは最新版を取得できなくても0で終わる(monkeypatch, capsys, tmp_path):
@@ -533,8 +549,8 @@ def test_doctorはclaudeが応答しないときタイムアウトで1を返す(
         raise subprocess.TimeoutExpired("claude", k["timeout"])
 
     monkeypatch.setattr(spec_interview.subprocess, "run", hang)
-    assert run(monkeypatch, "doctor") == 1
-    assert "NG: Playwright MCP" in capsys.readouterr().out
+    assert run(monkeypatch, "doctor") == 3
+    assert "[NG] Playwright MCP" in capsys.readouterr().out
 
 
 def test_doctorはclaudeを実行できないときOSErrorで落ちず1を返す(monkeypatch, capsys):
@@ -544,8 +560,8 @@ def test_doctorはclaudeを実行できないときOSErrorで落ちず1を返す
         raise PermissionError("claude")
 
     monkeypatch.setattr(spec_interview.subprocess, "run", broken)
-    assert run(monkeypatch, "doctor") == 1
-    assert "NG: Playwright MCP" in capsys.readouterr().out
+    assert run(monkeypatch, "doctor") == 3
+    assert "[NG] Playwright MCP" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("text", ["{壊れた", "[1, 2]", ""])
