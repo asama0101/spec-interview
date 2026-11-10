@@ -8,7 +8,7 @@ Claude Code 用プラグイン。質問をブラウザのフォームで出し�
 
 ## コマンド
 
-開発用の依存（pytest・ruff）は `requirements-dev.txt`。リポジトリ直下に `.venv/` がある。
+開発用の依存は `requirements-dev.txt`。`.venv/` は Git 管理外なので、手順は `docs/development.md` の「準備」を見る。
 
 ```bash
 .venv/Scripts/python -m pytest                                  # 全テスト
@@ -24,7 +24,7 @@ python plugins/spec-interview/scripts/spec_interview.py doctor   # 環境の点�
 実装は `plugins/spec-interview/` の 3 つが組になっている。
 
 - `skills/spec-interview/SKILL.md`: 質疑の手順そのもの。Claude が読んで実行する。コードではなく手順書が本体
-- `scripts/spec_interview.py`: SKILL.md から呼ぶ補助スクリプト（標準ライブラリのみ、Python 3.8 以上）。サブコマンドは `init`・`spec-path`・`render`・`doctor`
+- `scripts/spec_interview.py`: SKILL.md から呼ぶ補助スクリプト（標準ライブラリのみ、Python 3.8 以上）。サブコマンドは先頭の docstring が正本
 - `scripts/spec_interview_template.html`: `render` が質問 JSON を `__DATA__` に埋め込んで、1 ファイルの HTML にする
 
 実行時の流れ: Claude が質問 JSON を書く → `render` が HTML を作る → Playwright MCP が `file://` で開く → 送信すると `window.__submitted` と `window.__answersMd` が立つ → Claude が `browser_evaluate` で待って回答を読む。Playwright MCP はプラグインに同梱せず、利用者が別に登録する。
@@ -42,6 +42,7 @@ python plugins/spec-interview/scripts/spec_interview.py doctor   # 環境の点�
 - SKILL.md の「ルール」節は、mattpocock/skills の grilling の翻案。出典の版は `NOTICE` に固定してあり、テストが最新版かを確かめる（ネットワークが要る）。
 - 開発者向けの文書は `docs/development.md`（コマンド・しくみ・版の上げ方）。README には開発者向けの案内を書かない。
 - `docs/superpowers/` は `.gitignore` で Git 管理外（作業メモの置き場）。
+- このリポジトリで spec-interview を試すと、SPEC が `docs/spec-interview/specs/` にでき、`docs/` が管理対象なのでコミット対象になる。コミットしたくないときは、試す前に `.gitignore` へ加える。
 
 ## docs の更新方法
 
