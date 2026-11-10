@@ -87,18 +87,19 @@ Claude Code の中で実行します。何も変更しません。
 python plugins/spec-interview/scripts/spec_interview.py doctor
 ```
 
-確認する項目は、次の 4 つです。
+確認する項目は、次の 5 つです。版は最後に出します。
 
 | 項目 | 内容 |
 | --- | --- |
-| Python | 3.8 以上である |
+| OS | Windows である |
+| 実行環境 | Python 3.8 以上である |
 | `claude` コマンド | PATH にある |
 | Playwright MCP の登録 | `playwright` の名前で登録されていて、30 秒以内に応答する |
 | `file://` の許可 | 登録に `--allow-unrestricted-file-access` が付いている |
 
 あわせて、現在の版を `[情報]` で表示します。GitHub（`asama0101/spec-interview`）をマーケットプレイスに登録していれば、最新版かも確認します。新しい版があっても `[NG]` にはならず、終了コードも 0 です。GitHub に接続できないときは、確認できなかったと表示するだけです。
 
-そろっていれば `[OK] 動作に必要なものはそろっています。` と出ます。足りないものがあると `[NG] …` と理由を出し、終了コード 3 で終わります。`[NG]` のあとの文言と同じ見出しを、[困ったとき](#困ったとき)で探してください。
+項目ごとに `[OK]` か `[NG]` と理由を出し、対処があれば次の行に「→」で書きます。`[NG]` が 1 件でもあると、終了コード 3 で終わります。`[NG]` のあとの文言と同じ見出しを、[困ったとき](#困ったとき)で探してください。
 
 ## 使い方
 
@@ -182,7 +183,11 @@ Claude Code で、作業フォルダを開いて、次のように頼みます�
 
 画面や `/spec-interview:doctor` に出る文言を、見出しにしています。
 
-### [NG] Python 3.8 以上が必要です。
+### [NG] OS
+
+Windows 以外で実行しています。spec-interview は Windows 専用なので、Windows で使います。
+
+### [NG] 実行環境: Python 3.8 以上が必要です。
 
 原因: 動いた Python の版が 3.8 より古いです。
 
@@ -194,19 +199,19 @@ Claude Code で、作業フォルダを開いて、次のように頼みます�
 
 対処: `python3` が使えるなら、`python` を `python3` に読み替えます。Claude は、自動で読み替えます。どちらもなければ、Python 3.8 以上を入れます。
 
-### [NG] claude コマンドが見つかりません
+### [NG] claude コマンド: 見つかりません
 
 原因: `claude` コマンドが PATH にありません。Playwright MCP の確認に使います。
 
 対処: `claude --version` が通るターミナルで、もう一度実行します。
 
-### [NG] Playwright MCP を確認できません
+### [NG] Playwright MCP: 確認できません
 
 原因: `playwright` の名前で登録されていないか、30 秒以内に応答がありません。
 
 対処: `claude mcp list` で `playwright` を確認します。なければ、導入方法の手順 3 で登録し、Claude Code を再起動します。あるのに応答がないときは、`claude mcp get playwright` が接続できるかを確かめます。Playwright MCP の `browser_*` ツールがないと言われたときも、同じ対処です。
 
-### [NG] Playwright MCP に --allow-unrestricted-file-access が付いていません
+### [NG] file:// の許可: --allow-unrestricted-file-access が付いていません
 
 原因: すでに `playwright` が登録されていて、`claude mcp add` が効いていません。`file://` のページも開けません。
 
