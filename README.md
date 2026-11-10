@@ -87,7 +87,7 @@ Claude Code の中で実行します。何も変更しません。
 python plugins/spec-interview/scripts/spec_interview.py doctor
 ```
 
-確認する項目は、次の 5 つです。版は最後に出します。
+確認する項目は、次の 5 つです。プラグインのバージョンは最後に出します。
 
 | 項目 | 内容 |
 | --- | --- |
@@ -97,7 +97,7 @@ python plugins/spec-interview/scripts/spec_interview.py doctor
 | Playwright MCP の登録 | `playwright` の名前で登録されていて、30 秒以内に応答する |
 | `file://` の許可 | 登録に `--allow-unrestricted-file-access` が付いている |
 
-あわせて、現在の版を `[情報]` で表示します。GitHub（`asama0101/spec-interview`）をマーケットプレイスに登録していれば、最新版かも確認します。新しい版があっても `[NG]` にはならず、終了コードも 0 です。GitHub に接続できないときは、確認できなかったと表示するだけです。
+あわせて、プラグインのバージョンを `[情報]` で表示します。GitHub（`asama0101/spec-interview`）をマーケットプレイスに登録していれば、最新版かも確認します。新しい版があっても `[NG]` にはならず、終了コードも 0 です。GitHub に接続できないときは、確認できなかったと表示するだけです。
 
 項目ごとに `[OK]` か `[NG]` と理由を出し、対処があれば次の行に「→」で書きます。`[NG]` が 1 件でもあると、終了コード 3 で終わります。`[NG]` のあとの文言と同じ見出しを、[困ったとき](#困ったとき)で探してください。
 
