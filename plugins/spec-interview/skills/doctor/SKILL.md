@@ -1,15 +1,15 @@
 ---
 name: doctor
-description: grill-form が動くために必要なもの（Python の版、claude コマンド、Playwright MCP の登録）を確認し、足りないものと直し方を知らせる。「grill-form の動作環境を確認して」「doctor」と頼まれたときに使う。フォームで質問を詰める作業には使わない（その場合は grill-form スキルを使う）。
+description: spec-interview が動くために必要なもの（Python の版、claude コマンド、Playwright MCP の登録）を確認し、足りないものと直し方を知らせる。「spec-interview の動作環境を確認して」「doctor」と頼まれたときに使う。フォームで質問を詰める作業には使わない（その場合は spec-interview スキルを使う）。
 disable-model-invocation: true
-allowed-tools: Bash(python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" doctor) Bash(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" doctor)
+allowed-tools: Bash(python "${CLAUDE_PLUGIN_ROOT}/scripts/spec_interview.py" doctor) Bash(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/spec_interview.py" doctor)
 ---
 
 # doctor
 
-grill-form の動作環境を確認する。何も変更しない。以下の `python` は、環境に `python` コマンドがなければ `python3` に読み替える。
+spec-interview の動作環境を確認する。何も変更しない。以下の `python` は、環境に `python` コマンドがなければ `python3` に読み替える。
 
-1. `python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" doctor` を実行する。1 回だけ実行し、やり直さない。
+1. `python "${CLAUDE_PLUGIN_ROOT}/scripts/spec_interview.py" doctor` を実行する。1 回だけ実行し、やり直さない。
 2. 出力を、日本語で短く知らせる。
    - `INFO:` の行は、現在の版と最新版の確認結果なので、そのまま伝える。新しい版があると出たときは、更新のコマンドも伝える（自分では実行しない）。
    - `OK:` の行があるときは、「そろっています」と伝える。

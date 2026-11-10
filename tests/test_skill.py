@@ -9,10 +9,10 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-PLUGIN = ROOT / "plugins" / "grill-form"
-SKILL_MD = PLUGIN / "skills" / "grill-form" / "SKILL.md"
-SCRIPT = PLUGIN / "scripts" / "grill_form.py"
-EXPECTED_NAME = "grill-form"
+PLUGIN = ROOT / "plugins" / "spec-interview"
+SKILL_MD = PLUGIN / "skills" / "spec-interview" / "SKILL.md"
+SCRIPT = PLUGIN / "scripts" / "spec_interview.py"
+EXPECTED_NAME = "spec-interview"
 
 
 @pytest.fixture(scope="module")
@@ -76,7 +76,7 @@ def test_versionがメタとコードで一致する():
 
 def test_配布に必要なファイルがgit管理下にある():
     out = subprocess.run(  # noqa: S603
-        ["git", "ls-files", "plugins/grill-form"],  # noqa: S607
+        ["git", "ls-files", "plugins/spec-interview"],  # noqa: S607
         cwd=ROOT,
         capture_output=True,
         encoding="utf-8",
@@ -85,11 +85,11 @@ def test_配布に必要なファイルがgit管理下にある():
     ).stdout.split()
     for rel in (
         ".claude-plugin/plugin.json",
-        "skills/grill-form/SKILL.md",
-        "scripts/grill_form.py",
-        "scripts/grill_form_template.html",
+        "skills/spec-interview/SKILL.md",
+        "scripts/spec_interview.py",
+        "scripts/spec_interview_template.html",
     ):
-        assert f"plugins/grill-form/{rel}" in out
+        assert f"plugins/spec-interview/{rel}" in out
 
 
 def test_リポジトリにセッションの残骸が入っていない():
@@ -205,14 +205,14 @@ def test_READMEに開発者向けの案内がない():
 
 def test_READMEにscriptsの置き場が書かれている():
     text = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "plugins/grill-form/scripts/" in text
+    assert "plugins/spec-interview/scripts/" in text
 
 
 @pytest.mark.parametrize("sub", ["init", "spec-path", "render"])
 def test_allowed_toolsはサブコマンドごとに絞る(text, sub):
     allowed = parse_frontmatter(text)["allowed-tools"]
-    assert f'grill_form.py" {sub} *)' in allowed
-    assert 'grill_form.py" *)' not in allowed
+    assert f'spec_interview.py" {sub} *)' in allowed
+    assert 'spec_interview.py" *)' not in allowed
 
 
 DOCTOR_MD = PLUGIN / "skills" / "doctor" / "SKILL.md"
@@ -229,7 +229,7 @@ def test_doctorスキルは名前がディレクトリ名と一致し自動起�
 def test_doctorスキルはdoctorだけを許可する(py):
     allowed = parse_frontmatter(DOCTOR_MD.read_text(encoding="utf-8"))["allowed-tools"]
     assert (
-        f'Bash({py} "${{CLAUDE_PLUGIN_ROOT}}/scripts/grill_form.py" doctor)' in allowed
+        f'Bash({py} "${{CLAUDE_PLUGIN_ROOT}}/scripts/spec_interview.py" doctor)' in allowed
     )
     assert "*" not in allowed
 
@@ -241,7 +241,7 @@ def test_doctorスキルは他の絶対パスを使わず変更しないと書�
 
 
 def test_READMEにdoctorの呼び出し方がある():
-    assert "grill_form.py doctor" in (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "spec_interview.py doctor" in (ROOT / "README.md").read_text(encoding="utf-8")
 
 
 def test_SKILLが質問JSONとfinal_JSONのファイル名を決めている(text):

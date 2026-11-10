@@ -1,4 +1,4 @@
-# grill-form
+# spec-interview
 
 計画や設計を、ブラウザのフォームに答えながら詰めて、SPEC（仕様書）の 1 ファイルにまとめる Claude Code 用のプラグインです。Windows 11 専用です。
 
@@ -20,7 +20,7 @@ Claude の質問に、ターミナルではなくブラウザのフォームで�
 | OS | Windows 11。macOS と Linux は対象外です |
 | Claude Code | [Claude Code](https://docs.claude.com/en/docs/claude-code) |
 | Python | 3.8 以上。標準ライブラリだけで動くので、追加のライブラリは要りません |
-| Node.js | Playwright MCP を `npx` で起動するために使います。`/grill-form:doctor` は確認しません |
+| Node.js | Playwright MCP を `npx` で起動するために使います。`/spec-interview:doctor` は確認しません |
 | Playwright MCP | ローカルの HTML を開き、送信を検知するために使います。このプラグインには同梱していないので、導入方法の手順 3 で登録します |
 | ブラウザ | Chrome か Edge を推奨します |
 
@@ -33,23 +33,23 @@ Claude の質問に、ターミナルではなくブラウザのフォームで�
 Claude Code で実行します。
 
 ```
-/plugin marketplace add asama0101/grill-form
+/plugin marketplace add asama0101/spec-interview
 ```
 
 GitHub を使わず、手元にコピーして入れるときは、次のようにします。
 
 ```bash
-git clone https://github.com/asama0101/grill-form.git <任意のフォルダ>/grill-form
+git clone https://github.com/asama0101/spec-interview.git <任意のフォルダ>/spec-interview
 ```
 
 ```
-/plugin marketplace add <任意のフォルダ>/grill-form
+/plugin marketplace add <任意のフォルダ>/spec-interview
 ```
 
 ### 2. プラグインを入れる
 
 ```
-/plugin install grill-form@grill-form
+/plugin install spec-interview@spec-interview
 ```
 
 - 更新は `/plugin` の画面から行います。手元にコピーしたときは、先にそのフォルダで `git pull` します。
@@ -78,13 +78,13 @@ claude mcp add playwright --scope user -- npx @playwright/mcp@latest --allow-unr
 Claude Code の中で実行します。何も変更しません。
 
 ```
-/grill-form:doctor
+/spec-interview:doctor
 ```
 
 結果は Claude が日本語で知らせます。ターミナルから直接確認するときは、手元にコピーしたリポジトリの直下で次を実行します。
 
 ```bash
-python plugins/grill-form/scripts/grill_form.py doctor
+python plugins/spec-interview/scripts/spec_interview.py doctor
 ```
 
 確認する項目は、次の 4 つです。
@@ -96,7 +96,7 @@ python plugins/grill-form/scripts/grill_form.py doctor
 | Playwright MCP の登録 | `playwright` の名前で登録されていて、30 秒以内に応答する |
 | `file://` の許可 | 登録に `--allow-unrestricted-file-access` が付いている |
 
-あわせて、現在の版を `INFO:` で表示します。GitHub（`asama0101/grill-form`）をマーケットプレイスに登録していれば、最新版かも確認します。新しい版があっても `NG:` にはならず、終了コードも 0 です。GitHub に接続できないときは、確認できなかったと表示するだけです。
+あわせて、現在の版を `INFO:` で表示します。GitHub（`asama0101/spec-interview`）をマーケットプレイスに登録していれば、最新版かも確認します。新しい版があっても `NG:` にはならず、終了コードも 0 です。GitHub に接続できないときは、確認できなかったと表示するだけです。
 
 そろっていれば `OK: 動作に必要なものはそろっています。` と出ます。足りないものがあると `NG: …` と理由を出し、終了コード 1 で終わります。`NG:` のあとの文言と同じ見出しを、[困ったとき](#困ったとき)で探してください。
 
@@ -108,18 +108,18 @@ Claude Code で使えるコマンドは、次の 2 つです。
 
 | コマンド | 内容 |
 | --- | --- |
-| `/grill-form:grill-form [テーマ]` | フォームで質問に答えて、SPEC を作ります |
-| `/grill-form:doctor` | 動作に必要なものがそろっているか確認します。何も変更しません |
+| `/spec-interview:spec-interview [テーマ]` | フォームで質問に答えて、SPEC を作ります |
+| `/spec-interview:doctor` | 動作に必要なものがそろっているか確認します。何も変更しません |
 
 ### 最初の 1 回
 
 Claude Code で、作業フォルダを開いて、次のように頼みます。
 
 ```
-/grill-form:grill-form API の認証方式を詰めたい
+/spec-interview:spec-interview API の認証方式を詰めたい
 ```
 
-依頼文が足りないときは、Claude がターミナルで聞きます。そのあと、ブラウザに質問のフォームが開きます。「送信」を押すと、Claude が自動で検知して次へ進みます。「grill して」だけでは起動しません。`/grill-form:grill-form` を呼ぶか、「grill-form で〜」「HTML で grilling」と書いたときだけ使われます。
+依頼文が足りないときは、Claude がターミナルで聞きます。そのあと、ブラウザに質問のフォームが開きます。「送信」を押すと、Claude が自動で検知して次へ進みます。「grill して」だけでは起動しません。`/spec-interview:spec-interview` を呼ぶか、「spec-interview で〜」「HTML で grilling」と書いたときだけ使われます。
 
 ### 進み方
 
@@ -156,18 +156,18 @@ Claude Code で、作業フォルダを開いて、次のように頼みます�
 承認すると、次の 1 ファイルだけが残ります。
 
 ```
-<作業フォルダ>/docs/grill-form/specs/<日付>-<テーマ>-design.md
+<作業フォルダ>/docs/spec-interview/specs/<日付>-<テーマ>-design.md
 ```
 
-- 例: `docs/grill-form/specs/2026-11-03-api-design-design.md`。フォルダがなければ作ります。同じテーマを同じ日に 2 回承認すると、末尾に連番（`-2`、`-3`）が付きます。既存のファイルは上書きしません。
+- 例: `docs/spec-interview/specs/2026-11-03-api-design-design.md`。フォルダがなければ作ります。同じテーマを同じ日に 2 回承認すると、末尾に連番（`-2`、`-3`）が付きます。既存のファイルは上書きしません。
 - 実装計画は、別のスキル（superpowers の writing-plans など）で作ります。
 - 概要の「入力」に、依頼文の要約と、渡した資料の元のパスが入ります。
 - 依頼文の原文、質問と回答の履歴、入力ファイルは残りません。資料はコピーしないので、元のファイルを動かすと辿れなくなります。
-- SPEC は、そのまま git の管理対象になります。機密を書いたときは、`.gitignore` に `docs/grill-form/` を加えてください。
+- SPEC は、そのまま git の管理対象になります。機密を書いたときは、`.gitignore` に `docs/spec-interview/` を加えてください。
 
 ### 作業中のファイル
 
-作業中のファイル（質問・回答・HTML）は、OS の一時フォルダの `grill-form_<テーマ>_…` に置かれます。承認しても消さず、掃除は OS に任せます。
+作業中のファイル（質問・回答・HTML）は、OS の一時フォルダの `spec-interview_<テーマ>_…` に置かれます。承認しても消さず、掃除は OS に任せます。
 
 - 注意: 回答に秘密情報を書いたときは、OS が一時フォルダを掃除するまで残ります。気になるときは、該当のフォルダを自分で削除してください。
 - アンインストールしても、SPEC と Playwright MCP の登録は残ります。Playwright MCP はほかのツールと共有するので、不要なときだけ `claude mcp remove playwright` を自分で実行します。
@@ -180,7 +180,7 @@ Claude Code で、作業フォルダを開いて、次のように頼みます�
 
 ## 困ったとき
 
-画面や `/grill-form:doctor` に出る文言を、見出しにしています。
+画面や `/spec-interview:doctor` に出る文言を、見出しにしています。
 
 ### NG: Python 3.8 以上が必要です。
 
@@ -219,7 +219,7 @@ Claude Code で、作業フォルダを開いて、次のように頼みます�
 
 ### スキルが起動しない
 
-「grill-form で〜」か「HTML で grilling」と書いて頼んでください。「grill して」だけでは、通常の `grilling` スキルが使われます。`/grill-form:grill-form` で直接呼ぶこともできます。入れた直後は、Claude Code を再起動し、`/plugin` で `grill-form` が有効か確認します。
+「spec-interview で〜」か「HTML で grilling」と書いて頼んでください。「grill して」だけでは、通常の `grilling` スキルが使われます。`/spec-interview:spec-interview` で直接呼ぶこともできます。入れた直後は、Claude Code を再起動し、`/plugin` で `spec-interview` が有効か確認します。
 
 ### 送信が検知されない
 
@@ -231,7 +231,7 @@ Claude Code で、作業フォルダを開いて、次のように頼みます�
 
 ### SPEC が想定外の場所にできた
 
-SPEC は、Claude Code を起動したフォルダの `docs/grill-form/specs/` にできます。サブフォルダで Claude Code を起動していないか確認してください。
+SPEC は、Claude Code を起動したフォルダの `docs/spec-interview/specs/` にできます。サブフォルダで Claude Code を起動していないか確認してください。
 
 ### 日本語のテーマ名が文字化けする
 
@@ -241,6 +241,6 @@ SPEC は、Claude Code を起動したフォルダの `docs/grill-form/specs/` �
 
 [MIT](LICENSE)
 
-`SKILL.md` の「ルール」節は、Matt Pocock 氏の [grilling スキル](https://github.com/mattpocock/skills/tree/main/skills/productivity/grilling)（MIT）を要約・翻案したものです。元のライセンス表記は [NOTICE](plugins/grill-form/NOTICE) にあります。
+`SKILL.md` の「ルール」節は、Matt Pocock 氏の [grilling スキル](https://github.com/mattpocock/skills/tree/main/skills/productivity/grilling)（MIT）を要約・翻案したものです。元のライセンス表記は [NOTICE](plugins/spec-interview/NOTICE) にあります。
 
-不具合や要望は、[GitHub の Issues](https://github.com/asama0101/grill-form/issues) に書いてください。
+不具合や要望は、[GitHub の Issues](https://github.com/asama0101/spec-interview/issues) に書いてください。

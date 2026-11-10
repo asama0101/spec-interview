@@ -1,11 +1,11 @@
 ---
-name: grill-form
-description: grilling（質問攻めで合意を作る手法）を HTML のフォームで行い、候補選択・コメント・保留で内容を詰めて、最後に SPEC 形式で結果を出す。ユーザーが「HTML で grilling」「grill-form」と明示したときだけ使う。単に「grill して」と頼まれただけのときは使わない（その場合は grilling スキルを使う）。
+name: spec-interview
+description: grilling（質問攻めで合意を作る手法）を HTML のフォームで行い、候補選択・コメント・保留で内容を詰めて、最後に SPEC 形式で結果を出す。ユーザーが「HTML で grilling」「spec-interview」と明示したときだけ使う。単に「grill して」と頼まれただけのときは使わない（その場合は grilling スキルを使う）。
 disable-model-invocation: true
-allowed-tools: Bash(python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" init *) Bash(python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" spec-path *) Bash(python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" render *) Bash(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" init *) Bash(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" spec-path *) Bash(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" render *) Bash(python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" doctor) Bash(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" doctor)
+allowed-tools: Bash(python "${CLAUDE_PLUGIN_ROOT}/scripts/spec_interview.py" init *) Bash(python "${CLAUDE_PLUGIN_ROOT}/scripts/spec_interview.py" spec-path *) Bash(python "${CLAUDE_PLUGIN_ROOT}/scripts/spec_interview.py" render *) Bash(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/spec_interview.py" init *) Bash(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/spec_interview.py" spec-path *) Bash(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/spec_interview.py" render *) Bash(python "${CLAUDE_PLUGIN_ROOT}/scripts/spec_interview.py" doctor) Bash(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/spec_interview.py" doctor)
 ---
 
-# grill-form
+# spec-interview
 
 計画や設計について、ユーザーに質問をラウンド単位で重ねて合意を作る（grilling）。質問と回答は HTML フォームでやり取りし、合意内容を SPEC にまとめる。以下の `python` は、環境に `python` コマンドがなければ `python3` に読み替える。
 
@@ -23,19 +23,19 @@ allowed-tools: Bash(python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" init *)
 - 質問 ID（`Q1`, `Q2`…）はセッション通しで一意にする（ラウンドでリセットしない）。
 
 ## 手順
-1. セッション作成: `python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" init --theme "<テーマ>"` を実行する。
+1. セッション作成: `python "${CLAUDE_PLUGIN_ROOT}/scripts/spec_interview.py" init --theme "<テーマ>"` を実行する。
    - テーマは ASCII の短い名前にする（Windows の Git Bash 経由の日本語引数は文字化けするため。例: `api-design`）。
    - 出力は 1 行で、OS の一時フォルダの中の作業用フォルダ（以下 `<D>`）。HTML・回答・質問 JSON など、最終成果物以外はすべてここに置く。掃除は OS に任せる。
    - SPEC の保存先（以下 `<S>`）は、手順9で決める。
 2. 依頼文を受け取る。起動時の引数・同じメッセージの依頼内容を依頼文とする。足りなければ、ターミナルで質問する（AskUserQuestion か通常の質問）。参考にする資料は、ユーザーがパスで示す。
    - 資料のパスは、前後の引用符（`"`）を外してから、存在するファイルか確認する。存在しない・フォルダのパスは、ユーザーに再入力か対象ファイルの指定を求める。コピーはせず、元のパスのまま読み、パスの一覧は手順8の概要の「入力」に使う。
    - PDF は pdf スキルで文字を読み、図形が重要なときは Read ツールでページを画像として見る。Word は docx スキル、PowerPoint・Excel は pptx・xlsx スキルで文字と図形の構造を読み、図形が重要なときは PDF に書き出して渡すようユーザーに伝える。量が多いときは読み取りをサブエージェントに任せてよい。
-3. 質問 JSON を書く。置き場所は `<D>`、ファイル名は `<D>/round-N.json`。形式は `grill_form.py` の docstring を参照（`title`, `intro`, `questions[]` = `id`, `title`, `body`, `multi`, `options[]`（省略可）= `key`, `label`, `desc`、`recommended[]`, `reason`）。
-4. 生成: `python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" render --session-dir "<D>" --round <N> --input <json>` → `<D>/round-N.html`。
+3. 質問 JSON を書く。置き場所は `<D>`、ファイル名は `<D>/round-N.json`。形式は `spec_interview.py` の docstring を参照（`title`, `intro`, `questions[]` = `id`, `title`, `body`, `multi`, `options[]`（省略可）= `key`, `label`, `desc`、`recommended[]`, `reason`）。
+4. 生成: `python "${CLAUDE_PLUGIN_ROOT}/scripts/spec_interview.py" render --session-dir "<D>" --round <N> --input <json>` → `<D>/round-N.html`。
 5. Playwright MCP で `browser_navigate` により `file://` URL を開く。
    - `file:///C:/.../round-N.html` のように、スラッシュ区切りにする。
    - ユーザーに「回答して『送信』を押してください」と伝える。
-   - Playwright MCP の `browser_*` ツールが使えない場合は、README の「Playwright MCP を登録する」を案内して止まる（スキルには MCP を同梱していない）。`python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" doctor` で不足を確認できる。
+   - Playwright MCP の `browser_*` ツールが使えない場合は、README の「Playwright MCP を登録する」を案内して止まる（スキルには MCP を同梱していない）。`python "${CLAUDE_PLUGIN_ROOT}/scripts/spec_interview.py" doctor` で不足を確認できる。
 6. 送信を自動で待つ（ユーザーに「完了」と入力させない）。`browser_evaluate` で次の関数を実行すると、送信されるか約100秒たつまでブロックして結果を返す。
    `() => new Promise(res => { const t0 = Date.now(); const id = setInterval(() => { if (window.__submitted || Date.now() - t0 > 100000) { clearInterval(id); res({ submitted: !!window.__submitted, md: window.__answersMd }); } }, 500); })`
    - `submitted` が false なら、まだ送信されていない。同じ呼び出しを繰り返す（合計約30分、18回まで）。
@@ -62,7 +62,7 @@ allowed-tools: Bash(python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" init *)
    - 送信の待ち方と回答の記録は手順6と同じ（`<D>/final-K.answers.md` に書く）。
    - 回答が `修正あり` なら、コメントを反映し、K を 1 増やして、この手順8を繰り返す。`承認` なら、手順9へ進む。
 9. `承認` なら、SPEC を保存する。
-   - まず `python "${CLAUDE_PLUGIN_ROOT}/scripts/grill_form.py" spec-path --theme "<テーマ>"` を実行し、出力を SPEC の保存先 `<S>`（`<作業フォルダ>/docs/grill-form/specs/<日付>-<テーマ>-design.md`）とする。`spec-path` は、保存先のフォルダがなければ作る。終了コードが 1 のとき（フォルダを作れない）は、SPEC を別の場所へ書かず、標準エラーの理由を報告して止まる。承認は有効なので、ユーザーが原因を直したあとに、この手順9をやり直す。
+   - まず `python "${CLAUDE_PLUGIN_ROOT}/scripts/spec_interview.py" spec-path --theme "<テーマ>"` を実行し、出力を SPEC の保存先 `<S>`（`<作業フォルダ>/docs/spec-interview/specs/<日付>-<テーマ>-design.md`）とする。`spec-path` は、保存先のフォルダがなければ作る。終了コードが 1 のとき（フォルダを作れない）は、SPEC を別の場所へ書かず、標準エラーの理由を報告して止まる。承認は有効なので、ユーザーが原因を直したあとに、この手順9をやり直す。
    - 作業フォルダはカレントフォルダで決まるので、`cd` せずに実行する。
    - 承認された版の `summary` を、そのまま `<S>` に書く（Write）。別のセッションに SPEC を渡すときは、このファイルを使う。
    - `<S>` のパスを報告する。残るのは SPEC の 1 ファイルだけで、質問と回答の履歴（一時フォルダの `<D>`）は OS の掃除に任せる。

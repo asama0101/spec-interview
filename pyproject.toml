@@ -1,5 +1,5 @@
 [project]
-name = "grill-form"
+name = "spec-interview"
 dynamic = ["version"]
 requires-python = ">=3.8"
 

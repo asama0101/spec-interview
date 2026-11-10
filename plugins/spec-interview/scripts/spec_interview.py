@@ -1,11 +1,11 @@
-"""grill-form スキル用のスクリプト。
+"""spec-interview スキル用のスクリプト。
 
 サブコマンド:
   init   --theme T            OS の一時フォルダに作業用フォルダを作り、
                               そのパスを1行で出力する
                               （HTML・回答・質問 JSON を置く。掃除は OS に任せる）
   spec-path --theme T         SPEC の保存先
-                              <作業フォルダ>/docs/grill-form/specs/<日付>-<テーマ>-design.md
+                              <作業フォルダ>/docs/spec-interview/specs/<日付>-<テーマ>-design.md
                               を決め、フォルダを作って、パスを出力する
                               （ファイルは作らない）。作業フォルダは、
                               このスクリプトのカレントフォルダ。
@@ -43,15 +43,15 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
-__version__ = "2.1.0"
+__version__ = "1.0.0"
 MIN_PYTHON = (3, 8)
-REPO = "asama0101/grill-form"
+REPO = "asama0101/spec-interview"
 LATEST_URL = (
     f"https://raw.githubusercontent.com/{REPO}/main"
-    "/plugins/grill-form/.claude-plugin/plugin.json"
+    "/plugins/spec-interview/.claude-plugin/plugin.json"
 )
 KNOWN_MARKETPLACES = Path.home() / ".claude" / "plugins" / "known_marketplaces.json"
-TEMPLATE = Path(__file__).with_name("grill_form_template.html")
+TEMPLATE = Path(__file__).with_name("spec_interview_template.html")
 INVALID = re.compile(r'[\\/:*?"<>|\s]+')
 
 
@@ -61,7 +61,7 @@ def normalize_theme(theme: str) -> str:
 
 def spec_path(theme: str, today: datetime.date | None = None) -> Path:
     # 作業フォルダ基準で SPEC のパスを決める。既存のファイルは上書きしない
-    base = Path.cwd() / "docs" / "grill-form" / "specs"
+    base = Path.cwd() / "docs" / "spec-interview" / "specs"
     day = (today or datetime.date.today()).isoformat()
     stem = f"{day}-{normalize_theme(theme)}-design"
     cand, n = base / f"{stem}.md", 2
@@ -73,7 +73,7 @@ def spec_path(theme: str, today: datetime.date | None = None) -> Path:
 
 def cmd_init(args) -> int:
     # 作業ファイルは OS の一時フォルダに置く。掃除は OS に任せる
-    print(tempfile.mkdtemp(prefix=f"grill-form_{normalize_theme(args.theme)}_"))
+    print(tempfile.mkdtemp(prefix=f"spec-interview_{normalize_theme(args.theme)}_"))
     return 0
 
 
@@ -200,8 +200,8 @@ def report_version() -> None:
     elif version_key(latest) > version_key(__version__):
         print(
             f"INFO: 新しい版 {latest} があります。"
-            "`claude plugin marketplace update grill-form` のあと、"
-            "`claude plugin update grill-form@grill-form` で更新し、"
+            "`claude plugin marketplace update spec-interview` のあと、"
+            "`claude plugin update spec-interview@spec-interview` で更新し、"
             "Claude Code を再起動してください。"
         )
     else:
@@ -244,7 +244,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    ap.add_argument("--version", action="version", version=f"grill-form {__version__}")
+    ap.add_argument("--version", action="version", version=f"spec-interview {__version__}")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     p = sub.add_parser("init")

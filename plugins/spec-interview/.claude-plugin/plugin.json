@@ -1,9 +1,9 @@
 {
-  "name": "grill-form",
-  "version": "2.1.0",
+  "name": "spec-interview",
+  "version": "1.0.0",
   "description": "計画や設計を、ブラウザのフォームで答えながら詰めて、SPEC にまとめる。対象 OS は Windows 11 のみ（macOS・Linux は対象外）。",
-  "author": { "name": "grill-form contributors" },
+  "author": { "name": "spec-interview contributors" },
   "license": "MIT",
-  "repository": "https://github.com/asama0101/grill-form",
+  "repository": "https://github.com/asama0101/spec-interview",
   "keywords": ["grilling", "spec", "form", "requirements"]
 }

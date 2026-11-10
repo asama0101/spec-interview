@@ -1,4 +1,4 @@
-"""grill_form.py のパス決定・init・描画を検査する。"""
+"""spec_interview.py のパス決定・init・描画を検査する。"""
 
 import datetime
 import json
@@ -13,9 +13,9 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "plugins" / "grill-form" / "scripts"))
+sys.path.insert(0, str(ROOT / "plugins" / "spec-interview" / "scripts"))
 
-import grill_form  # noqa: E402
+import spec_interview  # noqa: E402
 
 NODE = shutil.which("node")
 
@@ -32,16 +32,16 @@ def workdir(tmp_path, monkeypatch):
 
 
 def run(monkeypatch, *argv):
-    monkeypatch.setattr(sys, "argv", ["grill_form.py", *argv])
-    return grill_form.main()
+    monkeypatch.setattr(sys, "argv", ["spec_interview.py", *argv])
+    return spec_interview.main()
 
 
-SPECS = Path("docs") / "grill-form" / "specs"
+SPECS = Path("docs") / "spec-interview" / "specs"
 
 
 def test_spec_pathは作業フォルダのdocs配下にテーマ_日付_designを返す(workdir):
-    assert grill_form.spec_path("api-design", today=TODAY) == (
-        workdir / "docs" / "grill-form" / "specs" / "2026-10-24-api-design-design.md"
+    assert spec_interview.spec_path("api-design", today=TODAY) == (
+        workdir / "docs" / "spec-interview" / "specs" / "2026-10-24-api-design-design.md"
     )
 
 
@@ -50,20 +50,20 @@ def test_spec_pathは既存ファイルがあれば連番を進める(workdir):
     d.mkdir(parents=True)
     (d / "2026-10-24-api-design-design.md").write_text("1", encoding="utf-8")
     (d / "2026-10-24-api-design-design-2.md").write_text("2", encoding="utf-8")
-    assert grill_form.spec_path("api-design", today=TODAY) == (
+    assert spec_interview.spec_path("api-design", today=TODAY) == (
         d / "2026-10-24-api-design-design-3.md"
     )
     assert (d / "2026-10-24-api-design-design.md").read_text("utf-8") == "1"
 
 
 def test_spec_pathは記号だけのテーマをuntitledにする(workdir):
-    assert grill_form.spec_path("///", today=TODAY).name == (
+    assert spec_interview.spec_path("///", today=TODAY).name == (
         "2026-10-24-untitled-design.md"
     )
 
 
 def test_spec_pathはファイルもフォルダも作らない(workdir):
-    grill_form.spec_path("t", today=TODAY)
+    spec_interview.spec_path("t", today=TODAY)
     assert list(workdir.iterdir()) == []
 
 
@@ -71,7 +71,7 @@ def test_spec_pathサブコマンドは絶対パスを1行で出力する(workdi
     assert run(monkeypatch, "spec-path", "--theme", "demo") == 0
     lines = capsys.readouterr().out.splitlines()
     assert len(lines) == 1
-    assert Path(lines[0]).parent == workdir / "docs" / "grill-form" / "specs"
+    assert Path(lines[0]).parent == workdir / "docs" / "spec-interview" / "specs"
     assert Path(lines[0]).name.endswith("-demo-design.md")
 
 
@@ -126,7 +126,7 @@ def test_initは一時フォルダにテーマ名つきの空のフォルダを�
     d = init_dir(monkeypatch, capsys)
     assert d.is_dir()
     assert d.parent == temp_root
-    assert d.name.startswith("grill-form_demo_")
+    assert d.name.startswith("spec-interview_demo_")
     assert list(d.iterdir()) == []
 
 
@@ -140,11 +140,11 @@ def test_initは同じテーマを続けて呼んでも別のフォルダを作�
 def test_initはパスに使えない文字だけのテーマをuntitledにする(
     theme, temp_root, monkeypatch, capsys
 ):
-    assert init_dir(monkeypatch, capsys, theme).name.startswith("grill-form_untitled_")
+    assert init_dir(monkeypatch, capsys, theme).name.startswith("spec-interview_untitled_")
 
 
 def test_initは日本語のテーマをそのまま名前に使う(temp_root, monkeypatch, capsys):
-    assert init_dir(monkeypatch, capsys, "設計").name.startswith("grill-form_設計_")
+    assert init_dir(monkeypatch, capsys, "設計").name.startswith("spec-interview_設計_")
 
 
 @pytest.mark.parametrize(
@@ -163,7 +163,7 @@ def test_廃止したサブコマンドと引数は受け付けない(argv, work
 def test_空白と日本語を含むパスで実コマンドのinitとrenderとspec_pathが通る(
     temp_root, tmp_path
 ):
-    script = ROOT / "plugins" / "grill-form" / "scripts" / "grill_form.py"
+    script = ROOT / "plugins" / "spec-interview" / "scripts" / "spec_interview.py"
     work = tmp_path / "作業 フォルダ"
     work.mkdir()
     env = {
@@ -203,13 +203,13 @@ def test_空白と日本語を含むパスで実コマンドのinitとrenderとs
     spec = call("spec-path", "--theme", "demo")
     assert spec.returncode == 0, spec.stderr
     spec_file = Path(spec.stdout.strip())
-    assert spec_file.parent == work.resolve() / "docs" / "grill-form" / "specs"
+    assert spec_file.parent == work.resolve() / "docs" / "spec-interview" / "specs"
     assert spec_file.parent.is_dir()
 
 
 def test_テンプレートはinnerHTMLを使わない():
     text = (
-        ROOT / "plugins" / "grill-form" / "scripts" / "grill_form_template.html"
+        ROOT / "plugins" / "spec-interview" / "scripts" / "spec_interview_template.html"
     ).read_text(encoding="utf-8")
     lines = [ln for ln in text.splitlines() if "innerHTML" in ln]
     assert len(lines) == 1
@@ -225,21 +225,21 @@ def embedded_data(html: str) -> dict:
 
 def test_テンプレートはゼロ幅スペースで依頼文を加工しない():
     text = (
-        ROOT / "plugins" / "grill-form" / "scripts" / "grill_form_template.html"
+        ROOT / "plugins" / "spec-interview" / "scripts" / "spec_interview_template.html"
     ).read_text(encoding="utf-8")
     assert "u200b" not in text.lower()
     assert "​" not in text
 
 
 def test_埋め込みはscript終了タグを無害化する():
-    out = grill_form.embed({"tree": {"name": "a</script>b"}})
+    out = spec_interview.embed({"tree": {"name": "a</script>b"}})
     assert "</script>" not in out
     assert "\\u003c/script>" in out
 
 
 def test_埋め込みはscriptの途中で解釈される開始記号を無害化する():
     data = {"body": "コメント <!-- のあとの <script> x"}
-    out = grill_form.embed(data)
+    out = spec_interview.embed(data)
     assert "<" not in out
     assert json.loads(out) == data
 
@@ -333,9 +333,9 @@ _MCP_GET_OK = (
 
 def _fake_claude(monkeypatch, which="claude", returncode=0, stdout=_MCP_GET_OK):
     # 外部コマンド（claude）だけを置き換える
-    monkeypatch.setattr(grill_form.shutil, "which", lambda name: which)
+    monkeypatch.setattr(spec_interview.shutil, "which", lambda name: which)
     monkeypatch.setattr(
-        grill_form.subprocess, "run", lambda *a, **k: _Done(returncode, stdout)
+        spec_interview.subprocess, "run", lambda *a, **k: _Done(returncode, stdout)
     )
 
 
@@ -367,7 +367,7 @@ def test_doctorはPlaywright_MCPが未登録なら1で終わる(monkeypatch, cap
 
 def test_doctorはPythonが古ければ1で終わる(monkeypatch, capsys):
     _fake_claude(monkeypatch)
-    monkeypatch.setattr(grill_form, "MIN_PYTHON", (99, 0))
+    monkeypatch.setattr(spec_interview, "MIN_PYTHON", (99, 0))
     assert run(monkeypatch, "doctor") == 1
     assert "NG: Python" in capsys.readouterr().out
 
@@ -375,9 +375,9 @@ def test_doctorはPythonが古ければ1で終わる(monkeypatch, capsys):
 @pytest.fixture(autouse=True)
 def _no_network_no_home(monkeypatch, tmp_path_factory):
     # doctor の版確認が、実際のネットワークと利用者の登録情報に触れないようにする
-    monkeypatch.setattr(grill_form, "latest_version", lambda: None)
+    monkeypatch.setattr(spec_interview, "latest_version", lambda: None)
     monkeypatch.setattr(
-        grill_form,
+        spec_interview,
         "KNOWN_MARKETPLACES",
         tmp_path_factory.mktemp("home") / "known_marketplaces.json",
     )
@@ -386,22 +386,22 @@ def _no_network_no_home(monkeypatch, tmp_path_factory):
 def _register_marketplace(monkeypatch, tmp_path, data):
     f = tmp_path / "known.json"
     f.write_text(json.dumps(data), encoding="utf-8")
-    monkeypatch.setattr(grill_form, "KNOWN_MARKETPLACES", f)
+    monkeypatch.setattr(spec_interview, "KNOWN_MARKETPLACES", f)
 
 
-GITHUB_ENTRY = {"grill-form": {"source": {"source": "github", "repo": grill_form.REPO}}}
+GITHUB_ENTRY = {"spec-interview": {"source": {"source": "github", "repo": spec_interview.REPO}}}
 
 
 def test_doctorは現在の版を表示する(monkeypatch, capsys):
     _fake_claude(monkeypatch)
     run(monkeypatch, "doctor")
-    assert f"現在の版は {grill_form.__version__}" in capsys.readouterr().out
+    assert f"現在の版は {spec_interview.__version__}" in capsys.readouterr().out
 
 
 def test_doctorはGitHub未登録なら最新版の確認を省略する(monkeypatch, capsys):
     _fake_claude(monkeypatch)
     called = []
-    monkeypatch.setattr(grill_form, "latest_version", lambda: called.append(1))
+    monkeypatch.setattr(spec_interview, "latest_version", lambda: called.append(1))
     assert run(monkeypatch, "doctor") == 0
     assert called == []
     assert "最新版の確認は省略" in capsys.readouterr().out
@@ -410,7 +410,7 @@ def test_doctorはGitHub未登録なら最新版の確認を省略する(monkeyp
 def test_doctorは新しい版があれば知らせるが0で終わる(monkeypatch, capsys, tmp_path):
     _fake_claude(monkeypatch)
     _register_marketplace(monkeypatch, tmp_path, GITHUB_ENTRY)
-    monkeypatch.setattr(grill_form, "latest_version", lambda: "99.0.0")
+    monkeypatch.setattr(spec_interview, "latest_version", lambda: "99.0.0")
     assert run(monkeypatch, "doctor") == 0
     out = capsys.readouterr().out
     assert "新しい版 99.0.0 があります" in out
@@ -420,7 +420,7 @@ def test_doctorは新しい版があれば知らせるが0で終わる(monkeypat
 def test_doctorは同じ版なら最新版と知らせる(monkeypatch, capsys, tmp_path):
     _fake_claude(monkeypatch)
     _register_marketplace(monkeypatch, tmp_path, GITHUB_ENTRY)
-    monkeypatch.setattr(grill_form, "latest_version", lambda: grill_form.__version__)
+    monkeypatch.setattr(spec_interview, "latest_version", lambda: spec_interview.__version__)
     run(monkeypatch, "doctor")
     assert "最新版です" in capsys.readouterr().out
 
@@ -428,7 +428,7 @@ def test_doctorは同じ版なら最新版と知らせる(monkeypatch, capsys, t
 def test_doctorは現在の版が新しくても更新を促さない(monkeypatch, capsys, tmp_path):
     _fake_claude(monkeypatch)
     _register_marketplace(monkeypatch, tmp_path, GITHUB_ENTRY)
-    monkeypatch.setattr(grill_form, "latest_version", lambda: "0.0.1")
+    monkeypatch.setattr(spec_interview, "latest_version", lambda: "0.0.1")
     run(monkeypatch, "doctor")
     out = capsys.readouterr().out
     assert "があります" not in out
@@ -452,19 +452,19 @@ def test_doctorは最新版を取得できなくても0で終わる(monkeypatch,
 )
 def test_登録はこのリポジトリのGitHubだけを数える(monkeypatch, tmp_path, data):
     _register_marketplace(monkeypatch, tmp_path, data)
-    assert grill_form.github_marketplace_registered() is False
+    assert spec_interview.github_marketplace_registered() is False
 
 
 def test_登録ファイルが壊れていれば未登録として扱う(monkeypatch, tmp_path):
     f = tmp_path / "known.json"
     f.write_text("{壊れた", encoding="utf-8")
-    monkeypatch.setattr(grill_form, "KNOWN_MARKETPLACES", f)
-    assert grill_form.github_marketplace_registered() is False
+    monkeypatch.setattr(spec_interview, "KNOWN_MARKETPLACES", f)
+    assert spec_interview.github_marketplace_registered() is False
 
 
 def test_登録されていればTrue(monkeypatch, tmp_path):
     _register_marketplace(monkeypatch, tmp_path, GITHUB_ENTRY)
-    assert grill_form.github_marketplace_registered() is True
+    assert spec_interview.github_marketplace_registered() is True
 
 
 class _Resp:
@@ -482,12 +482,12 @@ class _Resp:
 
 
 # latest_version 自体を試すテストは、autouse の置き換えを外した本物を使う
-_REAL_LATEST = grill_form.latest_version
+_REAL_LATEST = spec_interview.latest_version
 
 
 def test_latest_versionはplugin_jsonの版を返す(monkeypatch):
     monkeypatch.setattr(
-        grill_form.urllib.request,
+        spec_interview.urllib.request,
         "urlopen",
         lambda url, timeout: _Resp(b'{"version": "3.1.4"}'),
     )
@@ -497,7 +497,7 @@ def test_latest_versionはplugin_jsonの版を返す(monkeypatch):
 @pytest.mark.parametrize("body", [b"{broken", b"[1]", b'{"name": "x"}'])
 def test_latest_versionは読めなければNone(monkeypatch, body):
     monkeypatch.setattr(
-        grill_form.urllib.request, "urlopen", lambda url, timeout: _Resp(body)
+        spec_interview.urllib.request, "urlopen", lambda url, timeout: _Resp(body)
     )
     assert _REAL_LATEST() is None
 
@@ -506,7 +506,7 @@ def test_latest_versionは通信できなければNone(monkeypatch):
     def down(url, timeout):
         raise OSError("offline")
 
-    monkeypatch.setattr(grill_form.urllib.request, "urlopen", down)
+    monkeypatch.setattr(spec_interview.urllib.request, "urlopen", down)
     assert _REAL_LATEST() is None
 
 
@@ -518,23 +518,23 @@ def test_doctorは何も作らない(monkeypatch, workdir, tmp_path):
 
 
 def test_doctorはclaudeが応答しないときタイムアウトで1を返す(monkeypatch, capsys):
-    monkeypatch.setattr(grill_form.shutil, "which", lambda name: "claude")
+    monkeypatch.setattr(spec_interview.shutil, "which", lambda name: "claude")
 
     def hang(*a, **k):
         raise subprocess.TimeoutExpired("claude", k["timeout"])
 
-    monkeypatch.setattr(grill_form.subprocess, "run", hang)
+    monkeypatch.setattr(spec_interview.subprocess, "run", hang)
     assert run(monkeypatch, "doctor") == 1
     assert "NG: Playwright MCP" in capsys.readouterr().out
 
 
 def test_doctorはclaudeを実行できないときOSErrorで落ちず1を返す(monkeypatch, capsys):
-    monkeypatch.setattr(grill_form.shutil, "which", lambda name: "claude")
+    monkeypatch.setattr(spec_interview.shutil, "which", lambda name: "claude")
 
     def broken(*a, **k):
         raise PermissionError("claude")
 
-    monkeypatch.setattr(grill_form.subprocess, "run", broken)
+    monkeypatch.setattr(spec_interview.subprocess, "run", broken)
     assert run(monkeypatch, "doctor") == 1
     assert "NG: Playwright MCP" in capsys.readouterr().out
 
@@ -580,7 +580,7 @@ def test_renderは入力JSONがなければ短いエラーと終了コード2で
 
 def js_eval(pattern: str, expr: str, prelude: str = ""):
     # テンプレートの pattern に合う部分を取り出し、expr を node で実行して JSON で返す
-    src = grill_form.TEMPLATE.read_text(encoding="utf-8")
+    src = spec_interview.TEMPLATE.read_text(encoding="utf-8")
     parts = re.findall(pattern, src, re.DOTALL)
     assert parts, f"テンプレートに {pattern} がない"
     script = (

@@ -1,11 +1,11 @@
 {
-  "name": "grill-form",
-  "description": "grill-form プラグインの配布用マーケットプレイス。",
-  "owner": { "name": "grill-form contributors" },
+  "name": "spec-interview",
+  "description": "spec-interview プラグインの配布用マーケットプレイス。",
+  "owner": { "name": "spec-interview contributors" },
   "plugins": [
     {
-      "name": "grill-form",
-      "source": "./plugins/grill-form",
+      "name": "spec-interview",
+      "source": "./plugins/spec-interview",
       "description": "計画や設計を、ブラウザのフォームで答えながら詰めて、SPEC にまとめる。"
     }
   ]
