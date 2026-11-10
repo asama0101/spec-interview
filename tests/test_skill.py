@@ -1,4 +1,4 @@
-"""プラグインの形式を検査する（plugin-rules F1 の 1〜8）。"""
+"""プラグインの形式を検査する（plugin-rules E1 の 1〜7）。"""
 
 import json
 import re
