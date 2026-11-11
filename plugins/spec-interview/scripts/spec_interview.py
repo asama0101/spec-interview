@@ -186,22 +186,27 @@ def version_key(v: str) -> tuple:
 
 
 def version_lines() -> list[str]:
-    # 版の項目。更新が必要でも NG にはしない（動作環境の不足ではないため）
+    # バージョンの項目。更新が必要でも NG にはしない（動作環境の不足ではないため）
     head = f"[情報] プラグインのバージョン: v{__version__}"
     if not github_marketplace_registered():
         return [
-            f"{head}（GitHub（{REPO}）をマーケットプレイスに登録していないため、"
+            f"{head}（GitHub のマーケットプレイスに登録していないため、"
             "最新かは確認しません）"
         ]
     latest = latest_version()
     if latest is None:
-        return [f"{head}（最新版を確認できませんでした: GitHub に接続できません）"]
+        return [
+            f"{head}（最新のバージョンを確認できませんでした: "
+            "GitHub に接続できません）",
+            "  → ネットワークにつながっているか、github.com への通信を止めていないか"
+            "を確認する",
+        ]
     if version_key(latest) > version_key(__version__):
         return [
             f"{head}（GitHub に v{latest} があります）",
-            "  → `claude plugin marketplace update spec-interview` のあと、"
-            "`claude plugin update spec-interview@spec-interview` で更新し、"
-            "Claude Code を再起動する",
+            "  → /plugin marketplace update spec-interview を実行する",
+            "  → /plugin update spec-interview@spec-interview を実行する",
+            "  → Claude Code を開き直す",
         ]
     return [f"{head}（最新です）"]
 
