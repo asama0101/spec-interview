@@ -43,7 +43,7 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 MIN_PYTHON = (3, 8)
 REPO = "asama0101/spec-interview"
 LATEST_URL = (
