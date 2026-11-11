@@ -465,7 +465,7 @@ def test_doctorは最新版を取得できなくても0で終わる(monkeypatch,
     _fake_claude(monkeypatch)
     _register_marketplace(monkeypatch, tmp_path, GITHUB_ENTRY)
     assert run(monkeypatch, "doctor") == 0
-    assert "最新版を確認できませんでした" in capsys.readouterr().out
+    assert "最新のバージョンを確認できませんでした" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(
