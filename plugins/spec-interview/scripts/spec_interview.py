@@ -187,7 +187,7 @@ def version_key(v: str) -> tuple:
 
 def version_lines() -> list[str]:
     # 版の項目。更新が必要でも NG にはしない（動作環境の不足ではないため）
-    head = f"[情報] 版: v{__version__}"
+    head = f"[情報] プラグインのバージョン: v{__version__}"
     if not github_marketplace_registered():
         return [
             f"{head}（GitHub（{REPO}）をマーケットプレイスに登録していないため、"

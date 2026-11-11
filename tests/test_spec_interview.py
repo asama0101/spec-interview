@@ -412,13 +412,14 @@ def test_doctorは項目を標準の順に出し版を最後にする(monkeypatc
     names = [x.split(":")[0] for x in capsys.readouterr().out.splitlines()]
     assert names[0] == "[OK] OS"
     assert names[1] == "[OK] 実行環境"
-    assert names[-1] == "[情報] 版"
+    assert names[-1] == "[情報] プラグインのバージョン"
 
 
 def test_doctorは現在の版を表示する(monkeypatch, capsys):
     _fake_claude(monkeypatch)
     run(monkeypatch, "doctor")
-    assert f"[情報] 版: v{spec_interview.__version__}" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert f"[情報] プラグインのバージョン: v{spec_interview.__version__}" in out
 
 
 def test_doctorはGitHub未登録なら最新版の確認を省略する(monkeypatch, capsys):
